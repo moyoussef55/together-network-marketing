@@ -78,7 +78,8 @@ export const storage = {
     const safe = safeKey(key);
     const expires = Math.floor(Date.now() / 1000) + 3600;
     const params = new URLSearchParams({ key: safe, expires: String(expires), sig: sign(safe, expires) });
-    const base = String(process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`).replace(/\\/$/, "");
+    const baseValue = String(process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`);
+    const base = baseValue.endsWith("/") ? baseValue.slice(0, -1) : baseValue;
     return `${base}/uploads?${params.toString()}`;
   }
 };
