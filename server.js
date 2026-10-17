@@ -6,12 +6,15 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import express from "express";
 import multer from "multer";
 import cookieParser from "cookie-parser";
+import { Readable } from "node:stream";
+import { pipeline } from "node:stream/promises";
 import { closeRuntimeResources, verifyStorageSignature } from "hatchable";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
 const API_DIR = path.join(__dirname, "api");
 const PORT = Number(process.env.PORT || 3000);
+const HATCHABLE_API_ORIGIN = "https://together-network.hatchable.site";
 const app = express();
 app.disable("x-powered-by");
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
@@ -20,6 +23,87 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
   next();
 });
+
+app.use("/api", async (req, res) => {
+  let target;
+  try {
+    target = new URL(req.originalUrl, HATCHABLE_API_ORIGIN);
+    if (target.origin !== HATCHABLE_API_ORIGIN || !target.pathname.startsWith("/api/")) {
+      return res.status(400).json({ error: "invalid_api_path" });
+    }
+  } catch {
+    return res.status(400).json({ error: "invalid_api_path" });
+  }
+
+  try {
+    const headers = new Headers();
+    const allowedRequestHeaders = [
+      "accept", "accept-language", "authorization", "cookie", "content-type",
+      "if-match", "if-none-match", "if-modified-since", "if-unmodified-since",
+      "range", "user-agent", "x-csrf-token", "x-xsrf-token", "x-requested-with"
+    ];
+    for (const name of allowedRequestHeaders) {
+      const value = req.headers[name];
+      if (typeof value === "string" && value) headers.set(name, value);
+    }
+    headers.set("origin", HATCHABLE_API_ORIGIN);
+    headers.set("referer", target.href);
+
+    const init = {
+      method: req.method,
+      headers,
+      redirect: "manual",
+      signal: AbortSignal.timeout(Math.max(1000, Math.min(60000, Number(process.env.HATCHABLE_API_TIMEOUT_MS || 30000))))
+    };
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      init.body = req;
+      init.duplex = "half";
+    }
+
+    const upstream = await fetch(target, init);
+    res.status(upstream.status);
+    for (const name of [
+      "content-type", "cache-control", "etag", "last-modified", "content-disposition",
+      "vary", "allow", "retry-after", "www-authenticate", "content-language",
+      "accept-ranges", "x-ratelimit-limit", "x-ratelimit-remaining", "x-ratelimit-reset"
+    ]) {
+      const value = upstream.headers.get(name);
+      if (value) res.setHeader(name, value);
+    }
+
+    const cookies = typeof upstream.headers.getSetCookie === "function"
+      ? upstream.headers.getSetCookie()
+      : [];
+    if (cookies.length) res.setHeader("Set-Cookie", cookies);
+    else {
+      const cookie = upstream.headers.get("set-cookie");
+      if (cookie) res.setHeader("Set-Cookie", cookie);
+    }
+
+    const location = upstream.headers.get("location");
+    if (location) {
+      try {
+        const redirect = new URL(location, HATCHABLE_API_ORIGIN);
+        if (redirect.origin === HATCHABLE_API_ORIGIN) {
+          const publicBase = (req.protocol || "https") + "://" + req.get("host");
+          res.setHeader("Location", publicBase + redirect.pathname + redirect.search + redirect.hash);
+        } else {
+          res.setHeader("Location", location);
+        }
+      } catch {
+        res.setHeader("Location", location);
+      }
+    }
+
+    if (req.method === "HEAD" || !upstream.body) return res.end();
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch (error) {
+    console.error("Hatchable API proxy failed:", req.method, req.originalUrl, error?.cause?.code || error?.name || "Error");
+    if (res.headersSent) return res.destroy();
+    return res.status(502).json({ error: "hatchable_api_unavailable" });
+  }
+});
+
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
@@ -30,22 +114,30 @@ const upload = multer({
 });
 
 app.get("/healthz", async (_req, res) => {
-  const status = { ok: true, runtime: "namecheap-node", database_configured: Boolean(process.env.DATABASE_URL) };
-  if (process.env.DATABASE_URL) {
-    try {
-      const { db } = await import("hatchable");
-      await db.query("SELECT 1");
-      status.database = "connected";
-    } catch (error) {
+  const status = {
+    ok: true,
+    runtime: "namecheap-node",
+    api_mode: "hatchable-proxy",
+    upstream: HATCHABLE_API_ORIGIN
+  };
+  try {
+    const upstream = await fetch(HATCHABLE_API_ORIGIN + "/api/homepage-settings", {
+      headers: { accept: "application/json" },
+      signal: AbortSignal.timeout(5000)
+    });
+    status.upstream_status = upstream.status;
+    status.api_access = upstream.ok ? "available" : "rejected";
+    if (!upstream.ok) {
       status.ok = false;
-      status.database = "unavailable";
-      status.database_error_code = String(error?.code || "connection_failed").slice(0, 40);
       return res.status(503).json(status);
     }
-  } else status.database = "not_configured";
-  return res.json(status);
+    return res.json(status);
+  } catch {
+    status.ok = false;
+    status.api_access = "unreachable";
+    return res.status(503).json(status);
+  }
 });
-
 app.get("/uploads", async (req, res) => {
   const key = String(req.query.key || "");
   const expires = String(req.query.expires || "");
