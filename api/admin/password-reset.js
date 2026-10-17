@@ -1,4 +1,4 @@
-import { db, email } from "hatchable";
+import { db, email, config } from "hatchable";
 import crypto from "node:crypto";
 import { passwordHash } from "../../lib/admin-auth.js";
 
@@ -24,7 +24,8 @@ export default async function(req, res) {
         const token = crypto.randomBytes(32).toString("hex");
         await db.query("UPDATE network_admin_password_resets SET used_at=now() WHERE used_at IS NULL");
         await db.query("INSERT INTO network_admin_password_resets(token_hash,expires_at) VALUES($1,now()+interval '30 minutes')", [digest(token)]);
-        const link = "https://together-network.hatchable.site/admin-reset-password.html?token=" + encodeURIComponent(token);
+        const publicBase = String(await config.get("PUBLIC_BASE_URL") || "https://together-network.hatchable.site").replace(/\/+$/, "");
+        const link = publicBase + "/admin-reset-password.html?token=" + encodeURIComponent(token);
         try {
           await email.send({
             to: address,
