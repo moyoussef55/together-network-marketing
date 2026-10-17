@@ -8,7 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check runtime/hatchable/index.js"
+    "check": "node --check server.js && find api lib runtime -type f -name '*.js' -print0 | xargs -0 -n1 node --check"
   },
   "dependencies": {
     "cookie-parser": "^1.4.7",
