@@ -92,6 +92,10 @@ app.use("/api", upload.any(), async (req, res) => {
   try {
     const mod = await import(pathToFileURL(target).href);
     if (typeof mod.default !== "function") return res.status(500).json({ error: "invalid_api_handler" });
+    if (Array.isArray(mod.methods) && !mod.methods.includes(req.method)) {
+      res.setHeader("Allow", mod.methods.join(", "));
+      return res.status(405).json({ error: "method_not_allowed" });
+    }
     return await mod.default(req, res);
   } catch (error) {
     console.error("API handler failed:", relative, error?.code || error?.name || "Error");
