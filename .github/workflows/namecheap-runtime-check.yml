@@ -26,3 +26,6 @@ jobs:
           curl --silent --fail http://127.0.0.1:3000/ | grep -qi 'Together'
           curl --silent --fail http://127.0.0.1:3000/login > /tmp/together-login.html
           grep -qi '<html' /tmp/together-login.html
+          code=$(curl --silent --output /tmp/together-api-response.json --write-out '%{http_code}' http://127.0.0.1:3000/api/admin/login)
+          test "$code" = "405"
+          grep -q 'method_not_allowed' /tmp/together-api-response.json
