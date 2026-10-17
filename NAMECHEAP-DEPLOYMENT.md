@@ -21,8 +21,7 @@ The source imports db, storage, config, and email from the Hatchable SDK. This b
 3. Upload/clone branch `namecheap-runtime-prep` into that staging folder.
 4. Run `npm install` in staging. Generate and commit a lockfile after dependency resolution is verified.
 5. Create `.env` from `.env.example`, fill in credentials privately through the server environment settings, and keep `.env` outside public web access.
-6. Run `npm run check`, restart the Node.js application, and open `/healthz`.
-6. Check /healthz. Test database connectivity only after Hatchable confirms the external endpoint and permissions. Prefer a read-only account for initial verification.
+6. Run `npm run check`, restart the Node.js application, and open `/healthz`. Test database connectivity only after Hatchable confirms the external endpoint and permissions; prefer a read-only account for initial verification.
 7. Verify how to access existing Hatchable object storage. Do not cut over if stored product images, event media, registration documents, or support attachments are missing.
 8. Validate all API and page flows with test accounts before allowing production writes.
 
