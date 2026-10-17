@@ -7,11 +7,12 @@ const types=new Map([["image/jpeg","jpg"],["image/png","png"],["image/webp","web
 function body(req){if(typeof req.body==="string"){try{return JSON.parse(req.body||"{}")}catch{return {}}}return req.body||{}}
 async function saveMedia(b){if(!b.media_base64)return null;const mime=String(b.media_type||"").toLowerCase(),ext=types.get(mime);if(!ext)throw Object.assign(new Error("unsupported_media_type"),{status:415});const raw=String(b.media_base64).replace(/^data:[^,]+,/,"");if(!raw||raw.length>21_500_000)throw Object.assign(new Error("file_too_large"),{status:413});const bytes=Buffer.from(raw,"base64");if(!bytes.length||bytes.length>15_000_000)throw Object.assign(new Error("file_too_large"),{status:413});const key="recognitions/"+crypto.randomUUID()+"."+ext;await storage.put(key,bytes,mime);return {key,mime,name:String(b.media_name||("تكريم."+ext)).replace(/[\\/\r\n]/g,"_").slice(0,180),bytes:bytes.length}}
 async function postShape(r){return {...r,media_url:r.media_key?await storage.url(r.media_key):null}}
+async function publicBaseUrl(){try{return String(await config.get("PUBLIC_BASE_URL")||"https://together-network.hatchable.site").trim().replace(/\/+$/, "")}catch{return "https://together-network.hatchable.site"}}
 async function sendRecognitionPush(ids,title,message,url){
  const unique=[...new Set((ids||[]).map(String).filter(Boolean))];if(!unique.length)return {sent:0,warning:null};
  let appId="",key="";try{appId=String(await config.get("ONESIGNAL_APP_ID")||"").trim()}catch{}try{key=String(await config.get("ONESIGNAL_REST_API_KEY")||"").trim()}catch{}
  if(!appId||!key)return {sent:0,warning:"push_not_configured"};
- try{const r=await fetch("https://api.onesignal.com/notifications",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Key "+key},body:JSON.stringify({app_id:appId,target_channel:"push",include_aliases:{external_id:unique},headings:{en:title,ar:title},contents:{en:message,ar:message},url:url||"https://together-network.hatchable.site/marketer/recognitions/"})});const d=await r.json().catch(()=>({}));if(!r.ok){console.error("OneSignal recognition push failed",r.status,JSON.stringify(d).slice(0,800));return {sent:0,warning:"push_provider_error"}}return {sent:Number(d.recipients||0),warning:null}}catch(e){console.error("OneSignal recognition push request failed",e);return {sent:0,warning:"push_provider_error"}}
+ try{const r=await fetch("https://api.onesignal.com/notifications",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Key "+key},body:JSON.stringify({app_id:appId,target_channel:"push",include_aliases:{external_id:unique},headings:{en:title,ar:title},contents:{en:message,ar:message},url:url||((await publicBaseUrl())+"/marketer/recognitions/")})});const d=await r.json().catch(()=>({}));if(!r.ok){console.error("OneSignal recognition push failed",r.status,JSON.stringify(d).slice(0,800));return {sent:0,warning:"push_provider_error"}}return {sent:Number(d.recipients||0),warning:null}}catch(e){console.error("OneSignal recognition push request failed",e);return {sent:0,warning:"push_provider_error"}}
 }
 function findMentioned(description,marketers){
  const text=String(description||"").toLocaleLowerCase("ar");const found=[];
@@ -64,9 +65,9 @@ export default async function(req,res){
      }
      const everyone=eligible.rows.map(x=>String(x.id));
      const generalIds=everyone;
-     pushResult=await sendRecognitionPush(generalIds,'تكريم جديد من Together','تم نشر منشور جديد في قسم التكريمات. اضغط لمشاهدته.','https://together-network.hatchable.site/marketer/recognitions/');
+     pushResult=await sendRecognitionPush(generalIds,'تكريم جديد من Together','تم نشر منشور جديد في قسم التكريمات. اضغط لمشاهدته.',(await publicBaseUrl())+'/marketer/recognitions/');
      if(mentioned.length){
-      mentionPush=await sendRecognitionPush(mentioned.map(x=>x.id),'تمت الإشارة إليك في التكريمات','ذكرتك الإدارة في منشور تكريم. اضغط لعرض المنشور.','https://together-network.hatchable.site/marketer/recognitions/notifications/');
+      mentionPush=await sendRecognitionPush(mentioned.map(x=>x.id),'تمت الإشارة إليك في التكريمات','ذكرتك الإدارة في منشور تكريم. اضغط لعرض المنشور.',(await publicBaseUrl())+'/marketer/recognitions/notifications/');
      }
     }catch(notifyError){console.error("recognition new-post notifications failed",notifyError);if(!pushResult.warning)pushResult.warning="notification_processing_error"}
     return res.status(201).json({ok:true,post:await postShape(r.rows[0]),mentioned_count:mentioned.length,push_sent:pushResult.sent+mentionPush.sent,push_warning:pushResult.warning||mentionPush.warning||null})
