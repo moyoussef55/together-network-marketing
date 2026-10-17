@@ -24,3 +24,5 @@ jobs:
           grep -q '"ok":true' /tmp/together-health.json
           grep -q '"database":"not_configured"' /tmp/together-health.json
           curl --silent --fail http://127.0.0.1:3000/ | grep -qi 'Together'
+          curl --silent --fail http://127.0.0.1:3000/login > /tmp/together-login.html
+          grep -qi '<html' /tmp/together-login.html
