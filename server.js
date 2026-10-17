@@ -66,7 +66,10 @@ app.get("/uploads", async (req, res) => {
 app.use("/api", upload.any(), async (req, res) => {
   const pathname = new URL(req.originalUrl, "http://localhost").pathname;
   let relative;
-  try { relative = decodeURIComponent(pathname.replace(/^\\/api\\/?/, "").replace(/\\/$/, "")); }
+  try {
+    relative = decodeURIComponent(pathname.startsWith("/api/") ? pathname.slice(5) : "");
+    if (relative.endsWith("/")) relative = relative.slice(0, -1);
+  }
   catch { return res.status(400).json({ error: "invalid_path" }); }
   if (!relative || relative.includes("\0")) return res.status(404).json({ error: "not_found" });
   const target = path.resolve(API_DIR, `${relative}.js`);
@@ -75,7 +78,8 @@ app.use("/api", upload.any(), async (req, res) => {
 
   if (relative === "jobs/network-bv-weekly") {
     const secret = String(process.env.CRON_SECRET || "");
-    const supplied = String(req.headers.authorization || "").replace(/^Bearer\\s+/i, "");
+    const authorization = String(req.headers.authorization || "");
+    const supplied = authorization.slice(0, 7).toLowerCase() === "bearer " ? authorization.slice(7).trim() : "";
     const a = Buffer.from(secret);
     const b = Buffer.from(supplied);
     if (secret.length < 32 || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(404).json({ error: "not_found" });
