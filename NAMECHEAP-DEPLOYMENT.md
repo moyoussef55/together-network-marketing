@@ -8,10 +8,11 @@ This branch is a compatibility-preparation workspace for the Hatchable v435 sour
 - Do not run migrations/*.sql or seed.sql against the original database. This source snapshot assumes its schema already exists.
 - Do not put real credentials, tokens, or user exports in GitHub. Set them only in the Namecheap server environment.
 - Keep the Hatchable site live and unchanged while preparing and testing this runtime.
+- Existing Hatchable object-storage objects are not present in the Git source snapshot. The local storage adapter can store new uploads on Namecheap, but existing media keys will not resolve until shared storage is proven or existing media are migrated with a verified export/import process.
 
 ## Runtime scope
 
-The source imports db, storage, config, and email from the Hatchable SDK. This branch adds a Node/Express runtime and a local compatibility package for those APIs. Database compatibility can be tested with read-only SELECT 1; storage and SMTP need separate configuration. The local adapter is not a guarantee that every Hatchable-managed behavior is automatically reproduced.
+The source imports db, storage, config, and email from the Hatchable SDK. This branch adds a Node/Express runtime and a local compatibility package for those APIs. Database compatibility can be tested with read-only SELECT 1; storage and SMTP need separate configuration. Existing Hatchable media is a known parity gate: the adapter's local disk storage handles new uploads, but does not magically fetch existing Hatchable objects. The local adapter is not a guarantee that every Hatchable-managed behavior is automatically reproduced.
 
 ## Initial setup on Namecheap
 
@@ -21,7 +22,9 @@ The source imports db, storage, config, and email from the Hatchable SDK. This b
 4. Create .env from .env.example, fill in credentials privately, and keep .env outside public web access.
 5. Run npm run check, then npm start in staging.
 6. Check /healthz. Test database connectivity only after Hatchable confirms the external endpoint and permissions. Prefer a read-only account for initial verification.
-7. Validate all API and page flows with test accounts before allowing production writes.
+7. Verify how to access existing Hatchable object storage. Do not cut over if stored product images, event media, registration documents, or support attachments are missing.
+8. Validate all API and page flows with test accounts before allowing production writes.
+
 
 ## Cron
 
@@ -29,4 +32,4 @@ Configure Namecheap Cron Jobs to POST /api/jobs/network-bv-weekly with Authoriza
 
 ## Cutover gate
 
-Do not switch DNS or route users to Namecheap until external DB access, auth/session behavior, upload/download URLs, email delivery, OneSignal push, the weekly BV job, and critical admin/marketer flows have been verified. This branch is a staging artifact, not a production-ready declaration.
+Do not switch DNS or route users to Namecheap until external DB access, auth/session behavior, existing-media access, upload/download URLs, email delivery, OneSignal push, the weekly BV job, and critical admin/marketer flows have been verified. This branch is a staging artifact, not a production-ready declaration.
