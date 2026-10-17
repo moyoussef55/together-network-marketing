@@ -1,0 +1,14 @@
+CREATE TABLE app_profiles (id text PRIMARY KEY, role text NOT NULL DEFAULT 'customer', referral_code text UNIQUE NOT NULL, sponsor_id text REFERENCES app_profiles(id), display_name text, phone text, status text NOT NULL DEFAULT 'active', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE products (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, slug text UNIQUE NOT NULL, description text, price numeric(12,2) NOT NULL DEFAULT 0, stock integer NOT NULL DEFAULT 0, commissionable boolean NOT NULL DEFAULT true, active boolean NOT NULL DEFAULT true, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE orders (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), customer_id text NOT NULL, marketer_id text REFERENCES app_profiles(id), status text NOT NULL DEFAULT 'pending', total numeric(12,2) NOT NULL DEFAULT 0, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE order_items (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), order_id uuid NOT NULL REFERENCES orders(id) ON DELETE CASCADE, product_id uuid NOT NULL REFERENCES products(id), quantity integer NOT NULL, unit_price numeric(12,2) NOT NULL);
+CREATE TABLE commission_rules (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), name text NOT NULL, level integer NOT NULL, rate numeric(7,4) NOT NULL DEFAULT 0, active boolean NOT NULL DEFAULT true, UNIQUE(level));
+CREATE TABLE commission_ledger (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), order_id uuid REFERENCES orders(id), marketer_id text NOT NULL REFERENCES app_profiles(id), level integer NOT NULL, amount numeric(12,2) NOT NULL, status text NOT NULL DEFAULT 'pending', created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE wallets (user_id text PRIMARY KEY REFERENCES app_profiles(id), balance numeric(12,2) NOT NULL DEFAULT 0, updated_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE wallet_transactions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id text NOT NULL REFERENCES app_profiles(id), type text NOT NULL, amount numeric(12,2) NOT NULL, reference text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE withdrawal_requests (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id text NOT NULL REFERENCES app_profiles(id), amount numeric(12,2) NOT NULL, status text NOT NULL DEFAULT 'pending', note text, created_at timestamptz NOT NULL DEFAULT now());
+CREATE TABLE audit_logs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), actor_id text, action text NOT NULL, entity_type text, entity_id text, metadata jsonb NOT NULL DEFAULT '{}'::jsonb, created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX app_profiles_sponsor_idx ON app_profiles(sponsor_id);
+CREATE INDEX orders_marketer_idx ON orders(marketer_id);
+CREATE INDEX commissions_marketer_idx ON commission_ledger(marketer_id);
+CREATE INDEX audit_created_idx ON audit_logs(created_at DESC);

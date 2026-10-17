@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>المحفظة | Together Network</title><link rel="stylesheet" href="/theme.css">
+<style>
+.wallet-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:18px 0}
+.wallet-card{background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:18px;padding:20px;box-shadow:0 8px 24px #1420330a;min-width:0}
+.wallet-card .kicker{display:block;color:var(--muted,#667085);font-size:14px;margin-bottom:10px}
+.wallet-card strong{display:block;font-size:clamp(23px,4vw,32px);line-height:1.3;overflow-wrap:anywhere}
+.wallet-card small{display:block;margin-top:8px;color:var(--muted,#667085)}
+/* Earnings figures are color-coded without changing labels, descriptions, or the actual balance. */
+#adminCredited{color:#1677e8}
+#adminRemoved{color:#dc2626}
+#directEarnings,#checkEarnings{color:#16a34a}
+#otherEarnings{color:#eab308}
+.wallet-card.primary{background:linear-gradient(135deg,#132b43,#1f4965);color:white;border:0}.wallet-card.primary .kicker,.wallet-card.primary small{color:#dbeafe}
+.wallet-section{background:var(--card,#fff);border:1px solid var(--border,#e5e7eb);border-radius:18px;padding:18px;margin-top:18px;overflow:hidden}
+.wallet-section h2{font-size:19px;margin:0 0 14px}
+.wallet-table-wrap{overflow-x:auto}
+.wallet-table{width:100%;border-collapse:collapse;min-width:560px}
+.wallet-table th,.wallet-table td{text-align:start;padding:12px 10px;border-bottom:1px solid var(--border,#e5e7eb);font-size:14px}.wallet-section .wallet-table td{color:#000!important}.wallet-section .wallet-table td.amount-plus,.wallet-section .wallet-table td.amount-check{color:#16834a!important;font-weight:800}.wallet-section .wallet-table td.amount-minus{color:#c0392b!important;font-weight:800}.wallet-section .wallet-table td.amount-pending{color:#b8860b!important;font-weight:900;background:#fff8d6}.wallet-section .wallet-table tr.pending-row td{background:#fff8d6}.wallet-section .wallet-table th{color:#111!important}.wallet-section .wallet-status,.wallet-section .tx-page-label{color:#111!important}
+.wallet-table th{color:var(--muted,#667085);font-weight:700}
+.amount-plus{color:#16834a;font-weight:800}.amount-minus{color:#c0392b;font-weight:800}.amount-check{color:#b8860b;font-weight:900}.tx-pagination{display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;padding-top:14px}.tx-pagination button{border:1px solid var(--border,#d0d5dd);border-radius:9px;padding:8px 13px;background:var(--card,#fff);color:inherit;font-weight:700;cursor:pointer}.tx-pagination button:disabled{opacity:.4;cursor:not-allowed}.tx-page-label{font-size:13px;color:var(--muted,#667085)}
+.wallet-status{padding:20px;text-align:center;color:var(--muted,#667085)}
+.wallet-note{color:var(--muted,#667085);font-size:13px;line-height:1.8}
+@media(max-width:600px){.wallet-card,.wallet-section{padding:15px}.wallet-grid{grid-template-columns:1fr 1fr;gap:10px}.wallet-card strong{font-size:22px}.wallet-card .kicker{font-size:12px}}
+</style><script src="/network-session.js"></script></head>
+<body class="app-shell">
+<div class="menu-overlay" id="menuOverlay"></div>
+<aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-mark">T</div><div><strong>Together</strong><span>Network Marketing</span></div></div>
+<nav class="side-nav">
+<a href="/marketer/dashboard/" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</a>
+<a href="/marketer/my-network/" data-ar="شبكتي" data-en="My Network">شبكتي</a>
+<a href="/store/" data-ar="المتجر" data-en="Store">المتجر</a>
+<a href="/marketer/agent/" data-ar="إضافة وكيل" data-en="Add Agent">إضافة وكيل</a>
+<a href="/marketer/profile/" data-ar="البروفايل" data-en="Profile">البروفايل</a>
+<a class="active" href="/marketer/wallet/" data-ar="المحفظة" data-en="Wallet">المحفظة</a>
+<a href="/marketer/withdraw/" data-ar="طلب السحب" data-en="Withdrawal Request">طلب السحب</a>
+<a href="/marketer/reports/" data-ar="التقارير" data-en="Reports">التقارير</a>
+<a href="/marketer/support/" data-ar="اتصل بالدعم" data-en="Contact Support">اتصل بالدعم</a>
+<a href="/marketer/events/" data-ar="الأحداث والمؤتمرات" data-en="Events & Conferences">الأحداث والمؤتمرات</a>
+<a href="/marketer/team-checks/" data-ar="شيكات فريقك" data-en="Your Team Checks">شيكات فريقك</a>
+</nav><button class="lang-btn" id="langBtn">English</button></aside>
+<main class="main-content">
+<header class="mobile-head"><button class="menu-btn" id="menuBtn">☰</button><span data-ar="المحفظة" data-en="Wallet">المحفظة</span></header>
+<header class="page-head"><div><p class="eyebrow" data-ar="حساب المسوق" data-en="Marketer account">حساب المسوق</p><h1 data-ar="المحفظة والأرباح" data-en="Wallet & Earnings">المحفظة والأرباح</h1><p class="muted" id="intro" data-ar="تابع رصيدك والتحويلات والأرباح المسجلة على حسابك." data-en="Track your balance, admin transfers, and recorded earnings.">تابع رصيدك والتحويلات والأرباح المسجلة على حسابك.</p><p class="wallet-note" id="walletAccount" aria-live="polite"></p></div><button class="btn" id="refreshBtn" data-ar="تحديث" data-en="Refresh">تحديث</button></header>
+<div id="loading" class="wallet-status" data-ar="جارٍ تحميل بيانات المحفظة..." data-en="Loading wallet...">جارٍ تحميل بيانات المحفظة...</div>
+<div id="content" hidden>
+<section class="wallet-grid">
+<article class="wallet-card primary" id="balanceCard" role="link" tabindex="0" aria-label="فتح صفحة الشيكات" style="cursor:pointer"><span class="kicker" data-ar="الرصيد الحالي" data-en="Current balance">الرصيد الحالي</span><strong id="balance">0.00 ج.م</strong><small data-ar="اضغط لعرض الشيكات" data-en="Tap to view checks">اضغط لعرض الشيكات</small></article>
+<article class="wallet-card"><span class="kicker" data-ar="الرصيد المحول من الإدارة" data-en="Credited by admin">الرصيد المحول من الإدارة</span><strong id="adminCredited">0.00 ج.م</strong><small data-ar="إجمالي الإضافات المسجلة من لوحة الإدارة" data-en="Total credits recorded from admin panel">إجمالي الإضافات المسجلة من لوحة الإدارة</small></article>
+<article class="wallet-card"><span class="kicker" data-ar="خصومات الإدارة" data-en="Admin deductions">خصومات الإدارة</span><strong id="adminRemoved">0.00 ج.م</strong><small data-ar="إجمالي الخصومات المسجلة من لوحة الإدارة" data-en="Total deductions recorded by admin">إجمالي الخصومات المسجلة من لوحة الإدارة</small></article>
+<article class="wallet-card"><span class="kicker" data-ar="العمولات المباشرة" data-en="Direct commissions">العمولات المباشرة</span><strong id="directEarnings">0.00 ج.م</strong><small id="directSub">—</small></article>
+<article class="wallet-card"><span class="kicker" data-ar="أرباح الشيكات الأسبوعية" data-en="Weekly check earnings">أرباح الشيكات الأسبوعية</span><strong id="checkEarnings">0.00 ج.م</strong><small id="checkSub">—</small></article>
+<article class="wallet-card"><span class="kicker" data-ar="العمولات الأخرى" data-en="Other commissions">العمولات الأخرى</span><strong id="otherEarnings">0.00 ج.م</strong><small id="otherSub">—</small></article>
+</section>
+<p class="wallet-note" data-ar="الأرباح معروضة حسب سجلات العمولات والشيكات في النظام، ولا تعني بالضرورة أن كل مبلغ منها تمت إضافته إلى الرصيد القابل للاستخدام. الرصيد الحالي هو الرصيد الفعلي في المحفظة." data-en="Earnings are shown from commission and check records; not every recorded earning is necessarily available to spend. Current balance is the actual wallet balance.">الأرباح معروضة حسب سجلات العمولات والشيكات في النظام، ولا تعني بالضرورة أن كل مبلغ منها تمت إضافته إلى الرصيد القابل للاستخدام. الرصيد الحالي هو الرصيد الفعلي في المحفظة.</p>
+<section class="wallet-section"><h2 data-ar="حركة المحفظة" data-en="Wallet transactions">حركة المحفظة</h2><div id="txWrap" class="wallet-table-wrap"></div></section>
+<section class="wallet-section"><h2 data-ar="طلبات السحب" data-en="Withdrawal requests">طلبات السحب</h2><div id="withdrawWrap" class="wallet-table-wrap"></div></section>
+</div>
+<div id="error" class="wallet-status" hidden></div>
+</main>
+<script>
+let lang=localStorage.getItem("tn_lang")||"ar";const $=s=>document.querySelector(s);
+function applyLang(){document.documentElement.lang=lang;document.documentElement.dir=lang==="ar"?"rtl":"ltr";document.querySelectorAll("[data-ar]").forEach(e=>e.textContent=lang==="ar"?e.dataset.ar:e.dataset.en);$("#langBtn").textContent=lang==="ar"?"English":"العربية";}
+function money(n){return new Intl.NumberFormat("en-US",{maximumFractionDigits:0}).format(Number(n||0))+(lang==="ar"?" ج.م":" EGP")}
+function date(v){try{return new Date(v).toLocaleString(lang==="ar"?"ar-EG":"en-US")}catch{return String(v||"—")}}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function labelType(t){const ar={admin_add:"إيداع من الإدارة",admin_remove:"خصم من الإدارة",direct_commission:"عمولة مباشرة",direct_commission_pending:"عمولة مؤجلة — تُضاف بعد تحديث السبت 12:00 ص",store_purchase:"شراء منتج",withdrawal:"طلب سحب",commission:"عمولة",weekly_check:"شيك أسبوعي",wallet_debit:"خصم من المحفظة",purchase:"عملية شراء"};const en={admin_add:"Admin deposit",admin_remove:"Admin deduction",direct_commission:"Direct commission",direct_commission_pending:"Deferred commission — releases Saturday 12:00 AM",store_purchase:"Product purchase",withdrawal:"Withdrawal",commission:"Commission",weekly_check:"Weekly check",wallet_debit:"Wallet deduction",purchase:"Purchase"};return (lang==="ar"?ar:en)[t]||t||"عملية أخرى"}
+let txPage=1,txRows=[];
+function renderTransactions(){const start=(txPage-1)*10,rows=txRows.slice(start,start+10);const totalPages=Math.max(1,Math.ceil(txRows.length/10));const body=rows.map(x=>{const check=x.type==="weekly_check"||x.direction==="check";const pending=x.type==="direct_commission_pending"||x.direction==="pending";const amount=Number(x.amount||0);const isOut=amount<0||x.direction==="out";const cls=pending?"amount-pending":check?"amount-check":isOut?"amount-minus":"amount-plus";const label=check?labelType("weekly_check"):labelType(x.type);const sign=pending?"⏳ ":check?"⤴️ ":isOut?"-":"+";return '<tr class="'+(pending?"pending-row":"")+'"><td>'+esc(label)+'</td><td class="'+cls+'">'+sign+esc(money(Math.abs(amount)))+'</td><td>'+esc(x.reference||"—")+'</td><td>'+esc(date(x.created_at))+'</td></tr>'});$("#txWrap").innerHTML=table([lang==="ar"?"اسم العملية":"Operation",lang==="ar"?"المبلغ":"Amount",lang==="ar"?"المرجع":"Reference",lang==="ar"?"التاريخ":"Date"],body,lang==="ar"?"لا توجد حركات مسجلة حتى الآن.":"No transactions recorded yet.")+(txRows.length?'<div class="tx-pagination"><button id="txPrev" '+(txPage<=1?'disabled':'')+'>'+ (lang==="ar"?"السابق":"Previous")+'</button><span class="tx-page-label">'+(lang==="ar"?"صفحة ":"Page ")+txPage+' / '+totalPages+'</span><button id="txNext" '+(txPage>=totalPages?'disabled':'')+'>'+(lang==="ar"?"التالي":"Next")+'</button></div>':"");const prev=$("#txPrev"),next=$("#txNext");if(prev)prev.onclick=()=>{if(txPage>1){txPage--;renderTransactions()}};if(next)next.onclick=()=>{if(txPage<totalPages){txPage++;renderTransactions()}}}
+function table(headers,rows,empty){if(!rows.length)return '<div class="wallet-status">'+esc(empty)+'</div>';return '<table class="wallet-table"><thead><tr>'+headers.map(h=>'<th>'+esc(h)+'</th>').join("")+'</tr></thead><tbody>'+rows.join("")+'</tbody></table>'}
+async function load(){ $("#loading").hidden=false;$("#error").hidden=true;$("#content").hidden=true;try{
+ const me=await fetch("/api/network/me?fresh="+Date.now(),{cache:"no-store",credentials:"same-origin",headers:{"Cache-Control":"no-cache"}});if(me.status===401||me.status===403){location.href="/login?next=/marketer/wallet/";return}const meData=await me.json();
+ const r=await fetch("/api/marketer/wallet?fresh="+Date.now(),{cache:"no-store",credentials:"same-origin",headers:{"Cache-Control":"no-cache"}});if(r.status===401||r.status===403){location.href="/login?next=/marketer/wallet/";return}const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||"wallet_load_failed");
+ $("#walletAccount").textContent=(lang==="ar"?"المحفظة تخص: ":"Wallet account: ")+String(d.account?.name||meData.marketer?.name||"—")+" · "+(lang==="ar"?"كود المسوق: ":"Referral code: ")+String(d.account?.referral_code||meData.marketer?.referral_code||"—")+" · "+(lang==="ar"?"الرصيد من الخادم: ":"Server balance: ")+money(d.balance);$("#balance").textContent=money(d.balance);$("#adminCredited").textContent=money(d.admin_transfers.credited);$("#adminRemoved").textContent=money(d.admin_transfers.removed);
+ $("#directEarnings").textContent=money(d.earnings.direct_commissions.total);$("#directSub").textContent=(lang==="ar"?"مدفوع: ":"Paid: ")+money(d.earnings.direct_commissions.paid)+" · "+(lang==="ar"?"مستحق: ":"Payable: ")+money(d.earnings.direct_commissions.payable)+" · "+(lang==="ar"?"قيد الانتظار: ":"Pending: ")+money(d.earnings.direct_commissions.pending);
+ $("#checkEarnings").textContent=money(d.earnings.weekly_checks.total);$("#checkSub").textContent=(lang==="ar"?"عدد الشيكات المسجلة: ":"Recorded checks: ")+d.earnings.weekly_checks.count;
+ $("#otherEarnings").textContent=money(d.earnings.other_commissions.total);$("#otherSub").textContent=(lang==="ar"?"مدفوع: ":"Paid: ")+money(d.earnings.other_commissions.paid)+" · "+(lang==="ar"?"قيد الانتظار: ":"Pending: ")+money(d.earnings.other_commissions.pending);
+ txRows=d.transactions||[];txPage=1;renderTransactions();
+ const ws=d.withdrawals||[];$("#withdrawWrap").innerHTML=table([lang==="ar"?"المبلغ":"Amount",lang==="ar"?"الحالة":"Status",lang==="ar"?"ملاحظات":"Notes",lang==="ar"?"التاريخ":"Date"],ws.map(x=>'<tr><td>'+esc(money(x.amount))+'</td><td>'+esc(x.status||"—")+'</td><td>'+esc(x.note||"—")+'</td><td>'+esc(date(x.created_at))+'</td></tr>'),lang==="ar"?"لا توجد طلبات سحب.":"No withdrawal requests.");
+ $("#loading").hidden=true;$("#content").hidden=false;
+ }catch(e){$("#loading").hidden=true;$("#error").hidden=false;$("#error").textContent=(lang==="ar"?"تعذر تحميل المحفظة: ":"Could not load wallet: ")+(e.message||"Error")}}
+$("#menuBtn").onclick=()=>{$("#sidebar").classList.add("open");$("#menuOverlay").classList.add("open")};$("#menuOverlay").onclick=()=>{$("#sidebar").classList.remove("open");$("#menuOverlay").classList.remove("open")};document.querySelectorAll(".side-nav a").forEach(a=>a.onclick=()=>{$("#sidebar").classList.remove("open");$("#menuOverlay").classList.remove("open")});$("#langBtn").onclick=()=>{lang=lang==="ar"?"en":"ar";localStorage.setItem("tn_lang",lang);applyLang();load()};$("#refreshBtn").onclick=load;$("#balanceCard").onclick=()=>location.href="/marketer/team-checks/";$("#balanceCard").onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();location.href="/marketer/team-checks/";}};applyLang();load();
+</script><script src="/hide-hatchable.js"></script><!-- dashboard return button styles removed --><!-- dashboard return button removed --><script src="/marketer-sidebar.js?v=399"></script><script src="/theme-toggle.js?v=399"></script></body></html>

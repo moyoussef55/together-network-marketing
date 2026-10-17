@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>استلام نسخة البيانات المحلية</title>
+<style>
+body{font-family:Tahoma,Arial,sans-serif;background:#f4f6fb;color:#172033;margin:0;padding:24px}
+main{max-width:720px;margin:32px auto;background:#fff;border:1px solid #dce2ec;border-radius:14px;padding:24px}
+h1{font-size:22px}p{line-height:1.8}.notice{background:#fff7e6;border:1px solid #f0d7a0;padding:12px;border-radius:8px}
+input,button{font:inherit;margin:10px 0;max-width:100%;box-sizing:border-box}input[type=password]{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px}button{padding:10px 18px;border:0;border-radius:8px;background:#173b70;color:#fff;cursor:pointer}button:disabled{opacity:.5}
+#status{white-space:pre-wrap;background:#f5f7fa;border-radius:8px;padding:12px;min-height:44px}
+</style>
+</head>
+<body><main>
+<h1>استلام ملف بيانات الشبكة</h1>
+<p>هذه صفحة نقل مؤقتة إلى مساحة مراجعة محمية. لن تُضاف البيانات إلى حسابات الوكلاء أو الأرصدة من هذه الصفحة.</p>
+<div class="notice">أدخل رمز النقل المؤقت الذي تم تزويدك به، ثم اختر الملف <b>together-network-source.json</b>. الرمز صالح لعملية نقل واحدة فقط.</div>
+<label for="token">رمز النقل المؤقت:</label>
+<input id="token" type="password" autocomplete="off" placeholder="الصق رمز النقل هنا">
+<label for="file">اختر ملف التصدير من جهازك:</label><br>
+<input id="file" type="file" accept=".json,application/json"><br>
+<button id="send">إرسال إلى مساحة المراجعة</button>
+<div id="status" role="status">بانتظار اختيار الملف وإدخال الرمز.</div>
+<script>
+const fileInput=document.getElementById('file'),tokenInput=document.getElementById('token'),send=document.getElementById('send'),statusBox=document.getElementById('status');
+const report=s=>statusBox.textContent=s;
+async function post(data,token){
+ const r=await fetch('/api/admin/local-import',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,token})});
+ const j=await r.json().catch(()=>({}));
+ if(!r.ok) throw new Error(j.error||('HTTP '+r.status));
+ return j;
+}
+send.addEventListener('click',async()=>{
+ const file=fileInput.files?.[0],token=tokenInput.value.trim();
+ if(token.length<32){report('أدخل رمز النقل الصحيح أولاً.');return;}
+ if(!file){report('اختر الملف أولاً.');return;}
+ if(file.name!=='together-network-source.json'){report('اسم الملف غير مطابق.');return;}
+ if(file.size<1||file.size>8000000){report('حجم الملف خارج النطاق المسموح.');return;}
+ send.disabled=true;
+ try{
+   report('جارٍ قراءة الملف والتحقق من صيغة JSON محلياً...');
+   const raw=await file.text(),parsed=JSON.parse(raw);
+   if(parsed.exportFormat!=='together-network-migration-v1'||!parsed.collections||!Array.isArray(parsed.collections.agents))throw new Error('صيغة التصدير غير متوقعة؛ لم يتم إرسال شيء.');
+   const chunkSize=50000,parts=[];
+   for(let i=0;i<raw.length;i+=chunkSize)parts.push(raw.slice(i,i+chunkSize));
+   report('تم التحقق من JSON. جارٍ بدء النقل المحمي...');
+   const started=await post({action:'start',filename:file.name,bytes:raw.length,chunks:parts.length},token);
+   for(let i=0;i<parts.length;i++){
+     await post({action:'chunk',upload_id:started.upload_id,index:i,content:parts[i]},token);
+     report('جارٍ نقل الملف إلى مساحة المراجعة: '+(i+1)+' / '+parts.length);
+   }
+   const done=await post({action:'finish',upload_id:started.upload_id},token);
+   report('اكتمل النقل والتحقق الأولي.\nالحالة: '+done.status+'\nعدد الأجزاء: '+done.received_chunks+'\nعدد الأحرف المستلمة: '+done.received_chars+'\n\nلم يتم تغيير بيانات الوكلاء أو الأرصدة أو رسم الشبكة.');
+   tokenInput.value='';
+ }catch(e){report('لم يكتمل النقل: '+(e?.message||e)+'\nلم يتم تنفيذ استيراد إلى بيانات النظام.');}
+ finally{send.disabled=false;}
+});
+</script>
+</main><script src="/theme-toggle.js"></script></body></html>

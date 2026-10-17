@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>رفع ملف المصدر مؤقتًا</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}body{margin:0;background:#f3f6fb;font-family:Tahoma,Arial,sans-serif;color:#14213d;min-height:100vh;display:grid;place-items:center;padding:20px}.card{width:min(100%,620px);background:#fff;border:1px solid #dce4f0;border-radius:18px;padding:28px;box-shadow:0 12px 40px #1c355510}h1{font-size:24px;margin:0 0 12px}p{line-height:1.9;color:#4c5b73}.notice{background:#eef5ff;border-radius:12px;padding:12px 14px;margin:18px 0}.file{display:block;width:100%;padding:16px;border:1px dashed #8da4c4;border-radius:12px;background:#f9fbff;margin:18px 0}button{background:#174ea6;color:white;border:0;border-radius:10px;padding:13px 22px;font-size:16px;font-weight:700;cursor:pointer}button:disabled{opacity:.6;cursor:wait}#status{margin-top:18px;overflow-wrap:anywhere}.ok{color:#087443}.err{color:#b42318}.small{font-size:13px;color:#69778d}
+</style>
+</head>
+<body><main class="card">
+<h1>رفع ملف المصدر — توجيذر نيتورك ماركتينج</h1>
+<p>ارفع ملف التصدير أو النسخة الاحتياطية التي تحتوي على أسماء المسوقين الأصلية. مساحة الرفع مؤقتة وخاصة، ولن يتم تعديل بيانات الشبكة بمجرد رفع الملف.</p>
+<div class="notice">الملفات المسموحة: JSON أو ZIP أو CSV أو TXT — الحد الأقصى 10 ميجابايت.</div>
+<form id="uploadForm">
+<input class="file" id="file" name="file" type="file" accept=".json,.zip,.csv,.txt,application/json,application/zip,text/csv,text/plain" required>
+<button id="submit" type="submit">رفع الملف الآن</button>
+</form>
+<div id="status" role="status" aria-live="polite"></div>
+<p class="small">رابط مؤقت لمهمة إصلاح الأسماء فقط. لا ترفع كلمات مرور أو بيانات مالية سرية غير لازمة.</p>
+</main>
+<script>
+const TOKEN='TN-UPLOAD-2026-10-12-7d6c9a4e2f81b0c5e3a7d9f4';
+const form=document.getElementById('uploadForm'), fileInput=document.getElementById('file'), button=document.getElementById('submit'), status=document.getElementById('status');
+form.addEventListener('submit',async e=>{
+ e.preventDefault(); const file=fileInput.files[0]; if(!file)return;
+ if(file.size>10*1024*1024){status.className='err';status.textContent='حجم الملف أكبر من 10 ميجابايت.';return;}
+ button.disabled=true;status.className='';status.textContent='جارٍ رفع الملف، اترك الصفحة مفتوحة...';
+ try{
+  const fd=new FormData();fd.append('file',file);
+  const r=await fetch('/api/temp-source-upload?token='+encodeURIComponent(TOKEN),{method:'POST',body:fd});
+  const data=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(data.error||('فشل الرفع ('+r.status+')'));
+  status.className='ok';status.textContent='تم رفع الملف بنجاح. اسم الملف: '+(data.filename||file.name)+' — الحجم: '+Math.round((data.bytes||file.size)/1024)+' كيلوبايت. يمكنك إغلاق الصفحة الآن.';
+ }catch(err){status.className='err';status.textContent='تعذر رفع الملف: '+err.message;}
+ finally{button.disabled=false;}
+});
+</script></body></html>

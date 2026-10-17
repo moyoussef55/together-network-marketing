@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إدارة IBN</title><link rel="stylesheet" href="/theme.css">
+<style>
+body{background:#07111f;color:#fff}.shell{max-width:1200px;margin:auto;padding:28px 18px}
+.card{background:#0e1b2d;border:1px solid #233754;border-radius:16px;padding:20px;margin-bottom:20px}
+h1,h2{margin-top:0}.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+label{display:flex;flex-direction:column;gap:8px;font-weight:700;color:#fff}
+input{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;border:2px solid #49627f;background:#fff;color:#111;font-size:16px}
+.btn{margin-top:18px;padding:13px 24px;border:0;border-radius:10px;background:#1683ff;color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+.msg{margin-top:14px;padding:12px;border-radius:10px;background:#123b2b;color:#8ff0bd;display:none}
+.tools{display:flex;gap:10px;align-items:center;margin-bottom:14px}.tools input{max-width:430px}
+.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:1050px}.table th,.table td{padding:11px;border-bottom:1px solid #263a54;text-align:right;white-space:nowrap}.table th{background:#13243a}
+.badge{padding:5px 9px;border-radius:20px;background:#183b60}.used{background:#49351a;color:#ffd27a}.available{background:#123b2b;color:#8ff0bd}
+.pages{display:flex;gap:7px;flex-wrap:wrap;margin-top:15px}.pages button{border:1px solid #36516e;background:#102238;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}.pages button.active{background:#1683ff}
+.count{color:#9db1c8;margin-bottom:10px}
+@media(max-width:800px){.form-grid{grid-template-columns:1fr}.tools{flex-direction:column;align-items:stretch}.tools input{max-width:none}}
+</style>
+</head>
+<body><main class="shell">
+<div class="card">
+<h1>إضافة IBN</h1>
+<div class="form-grid">
+<label>قيمة الـ IBN<input id="amount" type="number" min="1" step="0.01" placeholder="مثال: 250"></label>
+<label>عدد الـ IBNات<input id="qty" type="number" min="1" max="10000" step="1" placeholder="مثال: 100"></label>
+<label>تاريخ الانتهاء<input id="exp" type="datetime-local"></label>
+</div>
+<button class="btn" id="make">إنشاء</button>
+<div id="msg" class="msg"></div>
+</div>
+
+<div class="card">
+<h2>الـ IBNات</h2>
+<div class="count" id="count"></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>القيمة</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>تاريخ الإنشاء</th></tr></thead><tbody id="list"></tbody></table></div>
+<div class="pages" id="pages"></div>
+</div>
+
+<div class="card">
+<h2>سجل الـ IBN</h2>
+<div class="tools"><input id="search" placeholder="ابحث بالـ IBN أو ID المنشئ أو ID الأبلاين أو ID المسجل به"><button class="btn" id="searchBtn" style="margin:0">بحث</button></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>القيمة</th><th>ID الذي أنشأ IBN</th><th>ID الأبلاين</th><th>ID المسجل به</th><th>موعد التسجيل</th><th>تاريخ الإنشاء</th><th>الانتهاء</th></tr></thead><tbody id="log"></tbody></table></div>
+<div class="pages" id="logPages"></div>
+</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let all=[],logs=[],page=1,logPage=1,search="";
+const perPage=10;
+const fmt=v=>v?new Date(v).toLocaleString("ar-EG",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
+function pager(host,total,current,cb){
+  host.innerHTML="";const n=Math.max(1,Math.ceil(total/perPage));
+  for(let i=1;i<=n;i++){const b=document.createElement("button");b.textContent=i;b.className=i===current?"active":"";b.onclick=()=>cb(i);host.appendChild(b)}
+}
+function renderList(){
+  const start=(page-1)*perPage,rows=all.slice(start,start+perPage);
+  $("list").innerHTML=rows.map(x=>`<tr><td><b>${x.code}</b></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${fmt(x.expires_at)}</td><td><span class="badge ${x.used_count>0?"used":"available"}">${x.used_count>0?"مستخدم":"متاح"}</span></td><td>${fmt(x.created_at)}</td></tr>`).join("")||'<tr><td colspan="5">لا توجد IBNات</td></tr>';
+  $("count").textContent="إجمالي IBNات: "+all.length;
+  pager($("pages"),all.length,page,i=>{page=i;renderList()});
+}
+function renderLog(){
+  const start=(logPage-1)*perPage,rows=logs.slice(start,start+perPage);
+  $("log").innerHTML=rows.map(x=>`<tr><td><b>${x.code}</b></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${x.created_by_id||"—"}</td><td>${x.used_by_upline_id||"—"}</td><td>${x.registered_agent_id||"—"}</td><td>${fmt(x.used_at)}</td><td>${fmt(x.created_at)}</td><td>${fmt(x.expires_at)}</td></tr>`).join("")||'<tr><td colspan="8">لا توجد سجلات</td></tr>';
+  pager($("logPages"),logs.length,logPage,i=>{logPage=i;renderLog()});
+}
+async function load(){
+  const r=await fetch("/api/admin/ibn?search="+encodeURIComponent(search)),d=await r.json();
+  logs=d.ibns||[];all=search?logs:logs.slice();page=1;logPage=1;renderList();renderLog();
+}
+$("make").onclick=async()=>{
+  $("msg").style.display="none";
+  const r=await fetch("/api/admin/ibn",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({amount:Number($("amount").value),quantity:Number($("qty").value),expires_at:new Date($("exp").value).toISOString()})});
+  const d=await r.json();
+  if(!r.ok){$("msg").textContent=d.error==="invalid_expiry"?"تاريخ الانتهاء غير صحيح.":d.error==="invalid_ibn"?"راجع قيمة IBN والعدد وتاريخ الانتهاء.":"تعذر إنشاء IBN.";$("msg").style.display="block";return}
+  $("msg").textContent="تمت الإضافة بنجاح — تم إنشاء "+d.count+" IBN مختلف، وكل IBN صالح للاستخدام مرة واحدة.";$("msg").style.display="block";
+  $("amount").value="";$("qty").value="";await load();
+};
+$("searchBtn").onclick=()=>{search=$("search").value.trim();load()};
+$("search").addEventListener("keydown",e=>{if(e.key==="Enter"){$("searchBtn").click()}});
+load();
+</script>
+<script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js"></script></body></html>

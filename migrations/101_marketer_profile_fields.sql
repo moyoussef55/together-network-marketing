@@ -1,0 +1,11 @@
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS first_name text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS second_name text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS third_name text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS fourth_name text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS national_id text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS email text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS country text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS state text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS city text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS heir_name text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS heir_mother_name text;

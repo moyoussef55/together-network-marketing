@@ -1,0 +1,1 @@
+INSERT INTO products (name, slug, description, price, stock, commissionable) SELECT 'Together Starter Kit', 'together-starter-kit', 'منتج تجريبي أولي للمنصة', 250, 100, true WHERE NOT EXISTS (SELECT 1 FROM products WHERE slug = 'together-starter-kit');

@@ -1,0 +1,3 @@
+ALTER TABLE products ADD COLUMN IF NOT EXISTS short_description text, ADD COLUMN IF NOT EXISTS original_price numeric, ADD COLUMN IF NOT EXISTS countdown_end_at timestamptz, ADD COLUMN IF NOT EXISTS product_type text NOT NULL DEFAULT 'general', ADD COLUMN IF NOT EXISTS sizes jsonb NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN IF NOT EXISTS colors jsonb NOT NULL DEFAULT '[]'::jsonb, ADD COLUMN IF NOT EXISTS videos jsonb NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS selected_size text, ADD COLUMN IF NOT EXISTS selected_color text;
+UPDATE products SET short_description=COALESCE(short_description,NULLIF(left(description,180),'')), original_price=COALESCE(original_price,price) WHERE short_description IS NULL OR original_price IS NULL;

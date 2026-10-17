@@ -1,0 +1,17 @@
+import { db } from "hatchable";
+import { requireAdminSession } from "../../lib/admin-auth.js";
+export const access = "public";
+export const methods=["GET"];
+
+export default async function(req,res){if(!(await requireAdminSession(req,res)))return;
+  const profiles=await db.query(`SELECT id,display_name,referral_code,phone,status,deleted_at,avatar_url,created_at,admin_tier_override
+    FROM app_profiles WHERE role='marketer' AND deleted_at IS NULL ORDER BY created_at ASC`);
+  const placements=await db.query(`SELECT p.owner_marketer_id,p.account_position,p.side,p.member_id,p.parent_member_id,
+    COALESCE(a.display_name,a.referral_code,p.member_id::text) member_name,a.referral_code,a.avatar_url,a.status
+    FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id
+    ORDER BY p.created_at NULLS LAST`);
+  const byOwner={};
+  for(const p of placements.rows)(byOwner[p.owner_marketer_id]??=[]).push(p);
+  const marketers=profiles.rows.map(m=>({...m,authorizations:byOwner[m.id]||[]}));
+  return res.json({ok:true,site:{name:"Together Network",marketer_count:marketers.length},marketers,placements:placements.rows});
+}

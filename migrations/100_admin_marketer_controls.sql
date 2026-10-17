@@ -1,0 +1,11 @@
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS deleted_at timestamptz;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS login_blocked boolean NOT NULL DEFAULT false;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS activation_blocked boolean NOT NULL DEFAULT false;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS admin_tier_override integer NOT NULL DEFAULT 0 CHECK (admin_tier_override BETWEEN 0 AND 3);
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS login_password_hash text;
+ALTER TABLE app_profiles ADD COLUMN IF NOT EXISTS wallet_password_hash text;
+CREATE INDEX IF NOT EXISTS app_profiles_role_status_idx ON app_profiles(role,status,created_at DESC);
+CREATE TABLE IF NOT EXISTS admin_manual_bv_sales (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),marketer_id text NOT NULL REFERENCES app_profiles(id),account_position integer NOT NULL CHECK (account_position IN (1,2,3)),side text NOT NULL CHECK (side IN ('left','right')),bv integer NOT NULL DEFAULT 1000 CHECK (bv > 0),mode text NOT NULL DEFAULT 'real' CHECK (mode='real'),created_by text,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS admin_manual_bv_sales_marketer_idx ON admin_manual_bv_sales(marketer_id,account_position,created_at DESC);
+CREATE TABLE IF NOT EXISTS admin_manual_wallet_actions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(),marketer_id text NOT NULL REFERENCES app_profiles(id),amount numeric(12,2) NOT NULL,action text NOT NULL CHECK (action IN ('add','remove')),created_by text,created_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS admin_manual_wallet_actions_marketer_idx ON admin_manual_wallet_actions(marketer_id,created_at DESC);

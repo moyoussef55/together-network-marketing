@@ -1,0 +1,1 @@
+ALTER TABLE marketer_support_messages ADD COLUMN IF NOT EXISTS attachments JSONB NOT NULL DEFAULT '[]'::jsonb;
