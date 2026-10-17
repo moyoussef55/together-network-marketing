@@ -16,11 +16,12 @@ The source imports db, storage, config, and email from the Hatchable SDK. This b
 
 ## Initial setup on Namecheap
 
-1. Confirm the hosting plan supports Node.js 20+ applications and persistent writable storage.
-2. Upload/clone this branch into a separate staging directory, not the live document root.
-3. Run npm install in staging. Generate and commit a lockfile after dependency resolution is verified.
-4. Create .env from .env.example, fill in credentials privately, and keep .env outside public web access.
-5. Run npm run check, then npm start in staging.
+1. In Namecheap cPanel, open **Setup Node.js App** and confirm the hosting plan supports Node.js 20+ and persistent writable storage.
+2. Create a separate staging application rooted at the repository folder; choose Node.js 20.x and set the startup file to `server.js`. Do not point the app at a current production document root.
+3. Upload/clone branch `namecheap-runtime-prep` into that staging folder.
+4. Run `npm install` in staging. Generate and commit a lockfile after dependency resolution is verified.
+5. Create `.env` from `.env.example`, fill in credentials privately through the server environment settings, and keep `.env` outside public web access.
+6. Run `npm run check`, restart the Node.js application, and open `/healthz`.
 6. Check /healthz. Test database connectivity only after Hatchable confirms the external endpoint and permissions. Prefer a read-only account for initial verification.
 7. Verify how to access existing Hatchable object storage. Do not cut over if stored product images, event media, registration documents, or support attachments are missing.
 8. Validate all API and page flows with test accounts before allowing production writes.
