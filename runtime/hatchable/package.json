@@ -1,0 +1,8 @@
+{
+  "name": "hatchable",
+  "version": "0.1.0-namecheap-compat",
+  "private": true,
+  "type": "module",
+  "exports": "./index.js",
+  "description": "Local compatibility adapter for the Hatchable SDK used by Together Network Marketing"
+}
