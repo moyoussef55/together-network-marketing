@@ -1,0 +1,36 @@
+[auth]
+enabled = true
+signup = "open"
+
+[ai]
+required = true
+
+[db.tables.wallet_transactions]
+read = "own"
+write = "member"
+
+[db.tables.wallets]
+read = "own"
+write = "member"
+
+# network_auth_sessions is accessed only by parameterized server-side auth handlers.
+
+[db.tables.withdrawal_requests]
+read = "own"
+write = "own"
+
+[[config]]
+name = "app_name"
+default = "Together Network Marketing"
+
+[[secret]]
+name = "TOGETHER_GMAIL_WEBAPP_URL"
+description = "Google Apps Script Web App URL ending in /exec for sending Together welcome emails"
+
+[[secret]]
+name = "TOGETHER_GMAIL_SHARED_SECRET"
+description = "Shared token that must exactly match SECRET_TOKEN in the Google Apps Script Code.gs"
+
+[[cron]]
+path = "/api/jobs/network-bv-weekly"
+schedule = "0 * * * *"

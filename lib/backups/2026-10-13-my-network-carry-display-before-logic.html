@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#07111f">
+<title>شبكتي — Together Network</title>
+<style>
+:root{--bg:#07111f;--panel:#101a28;--muted:#9fb0c6;--white:#fff;--blue:#1683ff;--red:#e53935;--bronze:#cd7f32;--silver:#c0c0c0;--gold:#ffd700}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:#fff;font-family:Arial,"Segoe UI",sans-serif}
+body{overflow-x:auto;overflow-y:auto}
+.tn-page{min-height:100vh;min-width:1140px;padding:22px}
+.tn-head{width:min(1500px,100%);margin:0 auto 18px}
+.tn-head h1{margin:4px 0;font-size:34px}
+.tn-muted{color:var(--muted)}
+.tn-card{width:min(1500px,100%);margin:auto;background:var(--panel);border:1px solid #ffffff14;border-radius:24px;padding:14px;overflow:visible}
+.tn-viewport{width:100%;height:auto;min-height:900px;overflow:visible;position:relative;border-radius:18px;background:#0b1420;touch-action:auto;cursor:default}
+.tn-viewport.dragging{cursor:grabbing}
+.tn-stage{position:relative;width:1100px;height:900px;margin:0 auto;transform:none}
+.tn-lines{position:absolute;inset:0;width:1100px;height:900px;z-index:1;pointer-events:none}
+.tn-lines path{fill:none;stroke:#fff;stroke-width:4;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.tn-node{position:absolute;width:180px;text-align:center;z-index:3}
+.tn-root{left:460px;top:40px}.tn-left{left:185px;top:285px}.tn-right{left:735px;top:285px}
+.tn-avatar{width:118px;height:118px;min-width:118px;min-height:118px;margin:auto;border-radius:50%;border:4px solid #fff;background:#182332;display:grid;place-items:center;overflow:hidden;position:relative;isolation:isolate;box-shadow:0 12px 28px #0008;font-size:25px;font-weight:900}
+.tn-avatar img{display:block;width:100%;height:100%;min-width:0;min-height:0;max-width:100%;max-height:100%;object-fit:cover;object-position:center;border-radius:50%;overflow:hidden}
+.tn-avatar.tn-gold::after{top:3px;z-index:2}
+.tn-avatar:empty::before{content:"";width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 36px 0 11px #fff}
+.tn-avatar.tn-inactive{background:var(--red);border-color:#ff7c7c}
+.tn-avatar.tn-bronze{background:var(--bronze);border-color:#f0b477}
+.tn-avatar.tn-silver{background:var(--silver);border-color:#fff;color:#111}
+.tn-avatar.tn-gold{background:var(--gold);border-color:#fff2a8;color:#171000}
+.tn-avatar.tn-gold::after{content:"👑";position:absolute;left:50%;top:-38px;transform:translateX(-50%);font-size:34px;line-height:1;z-index:8;filter:drop-shadow(0 2px 2px #0008)}
+.tn-pos.tn-inactive,.tn-id.tn-inactive{color:var(--red)}
+.tn-pos.tn-bronze,.tn-id.tn-bronze{color:var(--bronze)}
+.tn-pos.tn-silver,.tn-id.tn-silver{color:var(--silver)}
+.tn-pos.tn-gold,.tn-id.tn-gold{color:#f4c84a}
+.tn-label{margin-top:9px;line-height:1.25}.tn-pos{font-size:23px;font-weight:900}.tn-id{font-size:14px;font-weight:800;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.tn-name{font-size:13px;color:var(--muted);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}.tn-bv-pair{font-size:12px;font-weight:800;white-space:nowrap;margin-top:6px;direction:rtl;color:#dbeafe}.tn-bv-pair .right{color:#60a5fa}.tn-bv-pair .left{color:#34d399}
+.tn-slots{position:absolute;left:0;top:535px;width:1100px;height:100px;z-index:4}
+.tn-slot{position:absolute;top:0;width:112px;height:82px;border:0;border-radius:14px;background:var(--blue);color:#fff;display:grid;place-items:center;box-shadow:0 8px 18px #0006;font-size:42px;font-weight:900;cursor:pointer;padding:0}
+.tn-slot:nth-child(1){left:82px}.tn-slot:nth-child(2){left:357px}.tn-slot:nth-child(3){left:632px}.tn-slot:nth-child(4){left:907px}
+.tn-slot:hover{filter:brightness(1.1);transform:translateY(-2px)}
+.tn-slot.tn-occupied{font-size:13px;background:transparent;box-shadow:none;height:158px;top:-8px;color:#fff}
+.tn-slot-avatar{width:118px;height:118px;min-width:118px;min-height:118px;border-radius:50%;border:4px solid #fff;background:#182332;display:grid;place-items:center;overflow:hidden;font-size:25px;font-weight:900}
+.tn-slot-avatar img{width:100%;height:100%;object-fit:cover}
+.tn-slot-avatar.tn-inactive{background:var(--red);border-color:#ff7c7c}
+.tn-slot-avatar.tn-bronze{background:var(--bronze);border-color:#f0b477}
+.tn-slot-avatar.tn-silver{background:var(--silver);border-color:#fff}
+.tn-slot-avatar.tn-gold{background:var(--gold);border-color:#fff2a8}
+.tn-slot-avatar:empty::before{content:"";width:42px;height:42px;border-radius:50%;background:#fff;box-shadow:0 36px 0 11px #fff}
+.tn-slot-meta{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:5px;direction:ltr}
+.tn-slot-id{font-size:12px;font-weight:800;max-width:92px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;direction:ltr}
+.tn-slot-number{font-size:13px;font-weight:900}
+.tn-error{color:#ff9a9a;padding:12px}
+.tn-search{position:relative;width:min(720px,100%);margin:0 auto 14px;z-index:20}
+.tn-search-row{display:flex;gap:8px;align-items:center}
+.tn-search-input{width:100%;height:50px;min-width:0;border:1px solid #ffffff1c;border-radius:14px;background:#0b1420;color:#fff;padding:0 16px;font-size:16px;outline:none;box-shadow:0 8px 24px #0003}
+.tn-search-button{height:50px;flex:0 0 auto;padding:0 20px;border:0;border-radius:14px;background:#1683ff;color:#fff;font-size:15px;font-weight:800;cursor:pointer;white-space:nowrap}
+.tn-search-button:hover{filter:brightness(1.1)}.tn-search-button:disabled{opacity:.6;cursor:wait}
+@media(max-width:520px){.tn-search-row{gap:6px}.tn-search-input{padding:0 10px;font-size:14px}.tn-search-button{padding:0 12px;font-size:14px}}
+.tn-search-input:focus{border-color:#1683ff88;box-shadow:0 8px 28px #1683ff18}
+.tn-search-status{font-size:12px;color:var(--muted);min-width:52px;text-align:center}
+.tn-color-legend{display:flex;justify-content:center;align-items:flex-start;gap:24px;flex-wrap:wrap;margin:0 auto 16px;padding:12px 8px 4px}
+.tn-color-item{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;min-width:92px;text-align:center;font-size:13px;font-weight:800;color:#fff;line-height:1.25}
+.tn-color-avatar{width:64px;height:64px;border-radius:50%;border:3px solid #fff;display:grid;place-items:center;overflow:visible;position:relative;box-shadow:0 8px 18px #0006;margin-bottom:7px}
+.tn-color-avatar::before{content:"";width:25px;height:25px;border-radius:50%;background:#fff;box-shadow:0 22px 0 7px #fff}
+.tn-color-avatar.tn-color-red{background:var(--red);border-color:#ff7c7c}
+.tn-color-avatar.tn-color-bronze{background:var(--bronze);border-color:#f0b477}
+.tn-color-avatar.tn-color-silver{background:var(--silver);border-color:#fff}
+.tn-color-avatar.tn-color-gold{background:var(--gold);border-color:#fff2a8}
+.tn-color-avatar.tn-color-gold::after{content:"👑";position:absolute;left:50%;top:-24px;transform:translateX(-50%);font-size:24px;line-height:1;z-index:3;filter:drop-shadow(0 2px 2px #0008)}
+.tn-search-results{position:absolute;top:58px;left:0;right:0;background:#101a28;border:1px solid #ffffff1c;border-radius:15px;box-shadow:0 18px 45px #000b;overflow:hidden;display:none}
+.tn-search-results.open{display:block}
+.tn-search-result{width:100%;border:0;border-bottom:1px solid #ffffff0d;background:transparent;color:#fff;text-align:right;padding:11px 14px;cursor:pointer;display:flex;align-items:center;gap:11px}
+.tn-search-result:last-child{border-bottom:0}
+.tn-search-result:hover,.tn-search-result.active{background:#1683ff18}
+.tn-search-avatar{width:38px;height:38px;border-radius:50%;background:#182332;border:2px solid #fff;overflow:hidden;display:grid;place-items:center;flex:0 0 38px}
+.tn-search-avatar img{width:100%;height:100%;object-fit:cover}
+.tn-search-info{min-width:0}
+.tn-search-name{font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-search-id{font-size:12px;color:var(--muted);direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-search-empty{padding:14px;color:var(--muted);text-align:center}
+.tn-legend{display:flex;gap:18px;flex-wrap:wrap;padding:12px 4px 2px;color:var(--muted);font-size:13px}
+.tn-dot{display:inline-block;width:11px;height:11px;border-radius:3px;background:var(--blue);vertical-align:-1px;margin-inline-end:5px}
+.tn-loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--muted);z-index:10;background:#0b1420}
+.tn-loading[hidden]{display:none}
+.tn-bv-modal{position:fixed;inset:0;z-index:100;background:#0009;display:none;align-items:center;justify-content:center;padding:18px}
+.tn-bv-modal.open{display:flex}
+.tn-bv-box{width:min(560px,100%);max-height:min(760px,92vh);overflow:auto;background:#101a28;border:1px solid #ffffff22;border-radius:22px;box-shadow:0 24px 70px #000b;padding:20px}
+.tn-profile{margin-top:16px;border-radius:18px;overflow:hidden;background:#0b1420;border:1px solid #ffffff12}
+.tn-cover{height:150px;background:#172333 center/cover no-repeat;position:relative}
+.tn-cover::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 45%,#0b1420 100%)}
+.tn-profile-main{display:flex;align-items:center;gap:14px;padding:0 16px 16px;margin-top:-38px;position:relative;z-index:2}
+.tn-profile-avatar{width:88px;height:88px;min-width:88px;border-radius:50%;border:4px solid #fff;background:#182332;overflow:hidden;display:grid;place-items:center;box-shadow:0 10px 25px #0008}
+.tn-profile-avatar img{width:100%;height:100%;object-fit:cover}
+.tn-profile-info{min-width:0}
+.tn-profile-name{font-size:21px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn-profile-id{font-size:12px;color:var(--muted);direction:ltr;text-align:right;margin-top:3px}
+.tn-profile-date{font-size:12px;color:var(--muted);margin-top:5px}
+.tn-bv-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.tn-bv-head h2{margin:0;font-size:24px}
+.tn-bv-close{width:42px;height:42px;border:0;border-radius:12px;background:#243246;color:#fff;font-size:24px;cursor:pointer}
+.tn-bv-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}
+.tn-bv-stat{background:#0b1420;border:1px solid #ffffff12;border-radius:14px;padding:13px}
+.tn-bv-stat span{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+.tn-bv-stat b{font-size:21px}
+.tn-bv-list{margin-top:16px}
+.tn-bv-list h3{font-size:16px;margin:0 0 8px}
+.tn-bv-row{padding:10px 12px;background:#0b1420;border-radius:10px;margin-top:7px;color:#dbe7f5;font-size:13px}
+.tn-id.tn-clickable{cursor:pointer;text-decoration:underline;text-decoration-color:#1683ff;text-underline-offset:3px}
+.tn-bv-empty{color:var(--muted);padding:10px 0}
+@media(max-width:800px){
+ .tn-page{padding:10px}
+ .tn-head h1{font-size:28px}
+ .tn-card{padding:7px}
+ .tn-viewport{height:auto;min-height:900px}
+}
+</style>
+<script src="/network-session.js"></script></head>
+<body>
+<style>
+.tn-nav-toggle{position:fixed;top:16px;right:16px;z-index:12020;width:72px;height:72px;min-width:72px;min-height:72px;border:2px solid #ffffff70;border-radius:18px;background:#000;color:#fff;font-size:38px;font-weight:900;box-shadow:0 8px 24px #0008;cursor:pointer;display:grid;place-items:center;touch-action:manipulation;pointer-events:auto}
+.tn-nav-shade{position:fixed;inset:0;background:#000a;z-index:12000;display:none}
+.tn-nav-shade.open{display:block}
+.tn-nav-drawer{position:fixed;top:0;right:0;bottom:0;width:min(310px,86vw);padding:78px 18px 24px;background:#101a28;border-left:1px solid #ffffff22;z-index:12001;transform:translateX(105%);transition:transform .22s ease;overflow:auto;box-shadow:-12px 0 36px #0007}
+.tn-nav-drawer.open{transform:translateX(0)}
+.tn-nav-drawer a{display:block;padding:13px 14px;margin:5px 0;border-radius:11px;color:#fff;text-decoration:none;font:700 16px Arial,sans-serif}
+.tn-nav-drawer a:hover,.tn-nav-drawer a:focus{background:#1683ff2b;outline:none}
+.tn-nav-drawer .tn-nav-home{background:#1683ff}.tn-nav-drawer a[href="/marketer/reports/"]{background:#17304a;border-right:3px solid #1683ff}
+@media(min-width:1000px){.tn-nav-toggle{top:18px;right:18px}}
+</style>
+<button type="button" class="tn-nav-toggle" id="tnNavToggle" aria-label="فتح القائمة الجانبية" aria-expanded="false">☰</button>
+<div class="tn-nav-shade" id="tnNavShade"></div>
+<nav class="tn-nav-drawer" id="tnNavDrawer" aria-label="القائمة الجانبية للمسوق">
+<a class="tn-nav-home" href="/marketer/dashboard/">لوحة التحكم</a>
+<a href="/marketer/my-network/">شبكتي</a>
+<a href="/store/">المتجر</a>
+<a href="/marketer/agent/">إضافة وكيل</a>
+<a href="/marketer/profile/">البروفايل</a>
+<a href="/marketer/wallet/">المحفظة</a>
+<a href="/marketer/withdraw/">طلب السحب</a>
+<a href="/marketer/reports/">التقارير</a>
+<a href="/marketer/reports/">└ تقارير الشيكات</a>
+<a href="/marketer/team-checks/">شيكات فريقك</a>
+</nav>
+<script>
+(()=>{const b=document.getElementById("tnNavToggle"),s=document.getElementById("tnNavShade"),d=document.getElementById("tnNavDrawer");if(!b||!s||!d)return;function close(){s.classList.remove("open");d.classList.remove("open");b.setAttribute("aria-expanded","false")}b.addEventListener("click",()=>{const open=!d.classList.contains("open");d.classList.toggle("open",open);s.classList.toggle("open",open);b.setAttribute("aria-expanded",String(open))});s.addEventListener("click",close);document.addEventListener("keydown",e=>{if(e.key==="Escape")close()});d.querySelectorAll("a").forEach(a=>a.addEventListener("click",close))})();
+</script>
+<main class="tn-page">
+<header class="tn-head">
+<div class="tn-muted">شبكة المسوق</div>
+<h1 id="tn-title">شبكتي</h1>
+<div id="tn-sub" class="tn-muted">جاري تحميل الشبكة...</div>
+</header>
+<section class="tn-card">
+<div id="tn-error"></div>
+<div class="tn-color-legend" aria-label="دليل ألوان التفعيل">
+ <div class="tn-color-item"><div class="tn-color-avatar tn-color-red"></div><span>غير مفعل</span></div>
+ <div class="tn-color-item"><div class="tn-color-avatar tn-color-bronze"></div><span>احادي برونز</span></div>
+ <div class="tn-color-item"><div class="tn-color-avatar tn-color-silver"></div><span>ثنائي سيلڤر</span></div>
+ <div class="tn-color-item"><div class="tn-color-avatar tn-color-gold"></div><span>ثلاثي جولد</span></div>
+</div>
+<div class="tn-search" id="tn-search">
+ <div class="tn-search-row">
+  <input id="tn-search-input" class="tn-search-input" type="search" autocomplete="off" inputmode="search" placeholder="ابحث بالاسم أو رقم الهاتف أو كود المسوق..." aria-label="البحث داخل الشبكة بالاسم أو رقم الهاتف أو كود المسوق">
+  <button type="button" id="tn-search-button" class="tn-search-button">بحث</button>
+  <div id="tn-search-status" class="tn-search-status" aria-live="polite"></div>
+ </div>
+ <div id="tn-search-results" class="tn-search-results"></div>
+</div>
+<div class="tn-viewport" id="tn-viewport">
+<div class="tn-loading" id="tn-loading">جاري تحميل الشبكة...</div>
+<div class="tn-stage" id="tn-stage">
+<svg class="tn-lines" viewBox="0 0 1100 900" preserveAspectRatio="none" aria-hidden="true">
+<path d="M550 158 V220 H275 V285 M550 220 H825 V285"></path>
+<path d="M275 403 V485 H138 V535 M275 485 H413 V535"></path>
+<path d="M825 403 V485 H688 V535 M825 485 H963 V535"></path>
+</svg>
+<div class="tn-node tn-root"><div class="tn-avatar" id="tn-a1"></div><div class="tn-label"><div class="tn-pos">01</div><div class="tn-id" id="tn-i1">—</div><div class="tn-name" id="tn-m1">رأس الفريق</div><div class="tn-bv-pair" id="tn-bv1">يمين: 0 | شمال: 0</div><div class="tn-bv-pair tn-bv-carry" id="tn-carry1">كاري يمين: 0 | كاري شمال: 0</div></div></div>
+<div class="tn-node tn-left"><div class="tn-avatar" id="tn-a2"></div><div class="tn-label"><div class="tn-pos">02</div><div class="tn-id" id="tn-i2">—</div><div class="tn-name" id="tn-m2">التوكيل 02</div><div class="tn-bv-pair" id="tn-bv2">يمين: 0 | شمال: 0</div><div class="tn-bv-pair tn-bv-carry" id="tn-carry2">كاري يمين: 0 | كاري شمال: 0</div></div></div>
+<div class="tn-node tn-right"><div class="tn-avatar" id="tn-a3"></div><div class="tn-label"><div class="tn-pos">03</div><div class="tn-id" id="tn-i3">—</div><div class="tn-name" id="tn-m3">التوكيل 03</div><div class="tn-bv-pair" id="tn-bv3">يمين: 0 | شمال: 0</div><div class="tn-bv-pair tn-bv-carry" id="tn-carry3">كاري يمين: 0 | كاري شمال: 0</div></div></div>
+<div class="tn-slots">
+<button class="tn-slot" id="tn-s21">+</button><button class="tn-slot" id="tn-s22">+</button><button class="tn-slot" id="tn-s31">+</button><button class="tn-slot" id="tn-s32">+</button>
+</div>
+</div>
+</div>
+<div class="tn-legend"><span><i class="tn-dot"></i>الخانات الفارغة باللون الأزرق</span><span>الأفاتار المشغول يفتح شبكة صاحبه عند الضغط عليه</span><span>الخطوط البيضاء ثابتة مع الشبكة</span></div>
+</section>
+</main>
+<div class="tn-bv-modal" id="tn-bv-modal" role="dialog" aria-modal="true" aria-hidden="true">
+ <div class="tn-bv-box">
+  <div class="tn-bv-head"><h2 id="tn-bv-title">BV التوكيل</h2><button class="tn-bv-close" id="tn-bv-close" aria-label="إغلاق">×</button></div>
+  <div id="tn-profile-card" class="tn-profile" hidden>
+   <div id="tn-profile-cover" class="tn-cover"></div>
+   <div class="tn-profile-main">
+    <div id="tn-profile-avatar" class="tn-profile-avatar"></div>
+    <div class="tn-profile-info">
+     <div id="tn-profile-name" class="tn-profile-name">—</div>
+     <div id="tn-profile-id" class="tn-profile-id">—</div>
+     <div id="tn-profile-date" class="tn-profile-date">تاريخ الانضمام: —</div>
+    </div>
+   </div>
+  </div>
+  <div id="tn-bv-content"><div class="tn-bv-empty">جاري تحميل الـBV...</div></div>
+ </div>
+</div>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??"").replace(/[&<>"\']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+function avatar(el,url,letter){el.innerHTML=url?'<img src="'+esc(url)+'" alt="">':''}
+function openNetwork(id){if(id)location.href="/marketer/my-network/?member_id="+encodeURIComponent(id)}
+function openUpline(id){if(id)location.href="/marketer/my-network/?member_id="+encodeURIComponent(id)}
+function baseId(code){return String(code||"").replace(/(?:01|02|03)$/,"")}
+function agencyId(base,pos){return base+String(pos).padStart(2,"0")}
+function closeBv(){
+ const m=$("#tn-bv-modal");m.classList.remove("open");m.setAttribute("aria-hidden","true");
+}
+async function openBv(memberId,position,code,name,profileData){
+ const m=$("#tn-bv-modal"),c=$("#tn-bv-content");
+ $("#tn-bv-title").textContent="BV — "+code+" — التوكيل "+String(position).padStart(2,"0");
+ c.innerHTML='<div class="tn-bv-empty">جاري تحميل الـBV...</div>';
+ m.classList.add("open");m.setAttribute("aria-hidden","false");
+ try{
+  const r=await fetch("/api/network/bv?member_id="+encodeURIComponent(memberId)+"&account_position="+position,{cache:"no-store",credentials:"same-origin"});
+  const d=await r.json();if(!r.ok)throw Error(d.error||"تعذر تحميل بيانات BV");
+  const b=d.balance||{};
+  const rows=(Array.isArray(d.checks)?d.checks:[]).sort((a,b)=>String(b.week_end||"").localeCompare(String(a.week_end||""))||String(b.settled_at||"").localeCompare(String(a.settled_at||""))).slice(0,2);
+  const profile=$("#tn-profile-card");
+  const cover=$("#tn-profile-cover"),pa=$("#tn-profile-avatar");
+  const pname=$("#tn-profile-name"),pid=$("#tn-profile-id"),pdate=$("#tn-profile-date");
+  profile.hidden=false;
+  cover.style.backgroundImage=profileData?.cover_url?'url("'+esc(profileData.cover_url).replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'")':'';
+  pa.innerHTML=profileData?.avatar_url?'<img src="'+esc(profileData.avatar_url)+'" alt="">':'';
+  pname.textContent=profileData?.display_name||b.display_name||name||"مسوق";
+  pid.textContent=profileData?.referral_code||b.referral_code||code||b.member_id||memberId;
+  pdate.textContent="تاريخ الانضمام: "+(profileData?.created_at?new Date(profileData.created_at).toLocaleDateString("ar-EG",{year:"numeric",month:"long",day:"numeric"}):"غير متوفر");
+  c.innerHTML='<div class="tn-bv-grid">   <div class="tn-bv-stat"><span>إجمالي BV يمين</span><b>'+Number(b.total_right||0).toLocaleString("en-US")+'</b></div>   <div class="tn-bv-stat"><span>إجمالي BV شمال</span><b>'+Number(b.total_left||0).toLocaleString("en-US")+'</b></div>   <div class="tn-bv-stat"><span>Carry يمين</span><b>'+Number(b.carry_right||0).toLocaleString("en-US")+'</b></div>   <div class="tn-bv-stat"><span>Carry شمال</span><b>'+Number(b.carry_left||0).toLocaleString("en-US")+'</b></div>  </div>  <div class="tn-bv-list"><h3>آخر التسويات الأسبوعية</h3>'+
+   (rows.length?rows.map(x=>'<div class="tn-bv-row">'+esc(x.week_start||"")+" → "+esc(x.week_end||"")+" | يمين "+Number(x.right_bv||0).toLocaleString("en-US")+" | شمال "+Number(x.left_bv||0).toLocaleString("en-US")+" | مطابق "+Number(x.matched_bv||0).toLocaleString("en-US")+" | شيك "+Number(x.check_amount||0).toLocaleString("en-US")+" جنيه</div>").join(""):'<div class="tn-bv-empty">لا توجد تسويات أسبوعية مسجلة لهذا التوكيل حتى الآن.</div>')+
+  '</div><div class="tn-bv-list"><h3>آخر حركات BV</h3>'+
+   ((Array.isArray(d.recent_sales)?d.recent_sales:[]).filter(x=>String(x.order_id||"").startsWith("ADMIN-")).slice(0,8).map(x=>'<div class="tn-bv-row">BV مضاف يدويًا | '+(x.side==="right"?"يمين":"شمال")+' | '+Number(x.bv||0).toLocaleString("en-US")+' BV | '+esc(x.sale_at?new Date(x.sale_at).toLocaleString("ar-EG"):"")+'</div>').join("")||'<div class="tn-bv-empty">لا توجد إضافات BV يدوية مسجلة لهذا التوكيل.</div>')+
+  '</div>';
+ }catch(e){c.innerHTML='<div class="tn-error">'+esc(e.message)+'</div>'}
+}
+function renderAgency(n,base,tier,target){
+ const av=$("#tn-a"+n),id=$("#tn-i"+n),name=$("#tn-m"+n);
+ const code=agencyId(base,n);
+ const agencyAvatar=target?.avatar_url||null;
+  avatar(av,agencyAvatar,"");
+ id.textContent=code;
+ id.classList.add("tn-clickable");
+ id.title="اضغط لعرض BV التوكيل "+String(n).padStart(2,"0");
+ id.onclick=()=>openBv(target?.id||target?.member_id||"",n,code,target?.display_name||"",target);
+ name.textContent=n===1?"رأس الفريق":"التوكيل "+String(n).padStart(2,"0");
+ const bv=target?.bv_by_position?.[n]||{},bvLine=$("#tn-bv"+n),fmt=v=>Number(v||0).toLocaleString("en-US");
+ if(bvLine)bvLine.innerHTML='<span class="right">يمين: '+fmt(bv.right)+'</span> | <span class="left">شمال: '+fmt(bv.left)+'</span>';
+ av.className="tn-avatar";
+ const t=Number(tier||0);
+ const activeLevel=n<=t?(t===1?"tn-bronze":t===2?"tn-silver":"tn-gold"):"tn-inactive";
+ av.classList.add(activeLevel);
+ id.classList.remove("tn-inactive","tn-bronze","tn-silver","tn-gold");
+ id.classList.add(activeLevel);
+ const posEl=av.parentElement?.querySelector(".tn-pos");
+ if(posEl){posEl.classList.remove("tn-inactive","tn-bronze","tn-silver","tn-gold");posEl.classList.add(activeLevel)}
+}
+function renderSlot(el,x,base){
+ if(!x){
+  el.className="tn-slot";
+  el.innerHTML="+";
+  el.onclick=()=>location.href="/marketer/register-agent/?owner_id="+encodeURIComponent(new URLSearchParams(location.search).get("member_id")||"")+"&position="+(el.id==="tn-s21"||el.id==="tn-s22"?2:3)+"&slot="+(el.id==="tn-s21"||el.id==="tn-s31"?1:2);
+  return;
+ }
+ const childBase=baseId(x.referral_code||x.member_id);
+ const childId=agencyId(childBase,1);
+ el.className="tn-slot tn-occupied";
+ const childTier=Number(x.tier||0);
+ const childLevel=childTier>=3?"tn-gold":childTier===2?"tn-silver":childTier===1?"tn-bronze":"tn-inactive";
+ el.innerHTML='<div class="tn-slot-avatar '+childLevel+'" data-tier="'+childTier+'"></div><div class="tn-slot-meta"><span class="tn-slot-id">'+esc(childId)+'</span></div>';
+ el.title=(x.member_name||x.member_id||"مسوق")+" — "+childId;
+ el.onclick=()=>openNetwork(x.member_id);
+}
+/* الشبكة ثابتة؛ الحركة تكون بتمرير الصفحة نفسها فقط. */
+async function load(){
+ try{
+  const selected=new URLSearchParams(location.search).get("member_id");
+  // اجلب بيانات الشبكة مرة واحدة فقط؛ /api/network/agent يعيد target وبيانات العضو عند الحاجة.
+  const rr=await fetch("/api/network/agent"+(selected?"?member_id="+encodeURIComponent(selected):""),{cache:"default",credentials:"same-origin"});
+  if(rr.status===401){location.href="/login";return}
+  const d=await rr.json();if(!rr.ok)throw Error(d.error||"تعذر تحميل الشبكة");
+  const t=d.target||d.marketer||{},tier=Number(t.tier||0);
+  $("#tn-title").textContent=selected?(t.display_name||t.referral_code||"شبكة المسوق"):"شبكتي";
+  $("#tn-sub").textContent="01 و02 و03 + 4 خانات للفريق";
+  const base=baseId(t.referral_code||t.id);
+  renderAgency(1,base,tier,t);
+  renderAgency(2,base,tier,t);
+  renderAgency(3,base,tier,t);
+
+  // Clicking a downline's root avatar returns to its upline. The API only
+  // enables this for a selected descendant, never for the logged-in marketer's own root.
+  const rootAvatar=$("#tn-a1");
+  if(d.can_navigate_upline && selected && t.upline?.id){
+   rootAvatar.onclick=()=>openUpline(t.upline.id);
+   rootAvatar.style.cursor="pointer";
+   rootAvatar.title="اضغط للرجوع إلى شبكة المسوق الأعلى";
+   rootAvatar.setAttribute("role","button");
+   rootAvatar.setAttribute("tabindex","0");
+   rootAvatar.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();openUpline(t.upline.id)}};
+  }else{
+   rootAvatar.onclick=null;
+   rootAvatar.onkeydown=null;
+   rootAvatar.removeAttribute("role");
+   rootAvatar.removeAttribute("tabindex");
+   rootAvatar.style.cursor="default";
+   rootAvatar.title="عرض شبكة المسوق الحالية";
+  }
+
+  [["tn-s21",2,"left"],["tn-s22",2,"right"],["tn-s31",3,"left"],["tn-s32",3,"right"]].forEach(([id,pos,side])=>renderSlot($("#"+id),d.placements?.find(v=>Number(v.account_position)===pos&&v.side===side),base));
+  $("#tn-loading").hidden=true;
+ }catch(e){$("#tn-loading").hidden=true;$("#tn-error").innerHTML='<div class="tn-error">'+esc(e.message)+'</div>'}
+}
+const searchInput=$("#tn-search-input"),searchResults=$("#tn-search-results"),searchStatus=$("#tn-search-status");
+const searchCache=new Map();
+let searchTimer=null,searchAbort=null;
+function closeSearch(){searchResults.classList.remove("open");searchResults.innerHTML="";searchStatus.textContent="";}
+function goSearchResult(id){if(id){location.href="/marketer/my-network/?member_id="+encodeURIComponent(id)}}
+function renderSearchResults(rows){
+ if(!rows.length){searchResults.innerHTML='<div class="tn-search-empty">لا توجد نتائج داخل شبكتك.</div>';searchResults.classList.add("open");return}
+ searchResults.innerHTML=rows.map(x=>'<button type="button" class="tn-search-result" data-id="'+esc(x.id)+'">'+
+  '<span class="tn-search-avatar">'+(x.avatar_url?'<img src="'+esc(x.avatar_url)+'" alt="">':'')+'</span>'+
+  '<span class="tn-search-info"><span class="tn-search-name">'+esc(x.display_name||"مسوق")+'</span><span class="tn-search-id">'+esc(x.referral_code||x.id)+(x.phone?' · '+esc(x.phone):"")+'</span></span></button>').join("");
+ searchResults.querySelectorAll(".tn-search-result").forEach(b=>b.onclick=()=>goSearchResult(b.dataset.id));
+ searchResults.classList.add("open");
+}
+async function runNetworkSearch(){
+ const q=searchInput.value.trim();
+ if(q.length<2){searchResults.innerHTML='<div class="tn-search-empty">اكتب حرفين على الأقل للبحث.</div>';searchResults.classList.add("open");searchStatus.textContent="";return}
+ const searchButton=$("#tn-search-button");if(searchButton)searchButton.disabled=true;
+ const cached=searchCache.get(q.toLowerCase());
+ if(cached){searchStatus.textContent="";renderSearchResults(cached);const searchButton=$("#tn-search-button");if(searchButton)searchButton.disabled=false;return}
+ if(searchAbort)searchAbort.abort();
+ searchAbort=new AbortController();
+ searchStatus.textContent="…";
+ try{
+  const r=await fetch("/api/network/agent?search="+encodeURIComponent(q),{cache:"default",credentials:"same-origin",signal:searchAbort.signal});
+  const d=await r.json();if(!r.ok)throw Error(d.error||"تعذر البحث");
+  const rows=Array.isArray(d.results)?d.results:[];
+  searchCache.set(q.toLowerCase(),rows);
+  searchStatus.textContent="";
+  renderSearchResults(rows);
+ }catch(e){
+  if(e.name==="AbortError")return;
+  searchStatus.textContent="";
+  searchResults.innerHTML='<div class="tn-search-empty">'+esc(e.message)+'</div>';
+  searchResults.classList.add("open");
+ }finally{const searchButton=$("#tn-search-button");if(searchButton)searchButton.disabled=false;}
+}
+$("#tn-search-button").addEventListener("click",()=>{clearTimeout(searchTimer);runNetworkSearch()});
+searchInput.addEventListener("input",()=>{
+ clearTimeout(searchTimer);
+ searchTimer=setTimeout(runNetworkSearch,140);
+});
+searchInput.addEventListener("keydown",e=>{
+ if(e.key==="Enter"){
+  e.preventDefault();
+  const first=searchResults.querySelector(".tn-search-result");
+  if(first)goSearchResult(first.dataset.id);else runNetworkSearch();
+ }
+ if(e.key==="Escape")closeSearch();
+});
+document.addEventListener("click",e=>{if(!$("#tn-search").contains(e.target))closeSearch()});
+
+$("#tn-bv-close").onclick=closeBv;
+$("#tn-bv-modal").onclick=e=>{if(e.target.id==="tn-bv-modal")closeBv()};
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeBv()});
+load();
+</script>
+<script src="/hide-hatchable.js"></script><!-- dashboard return button styles removed --><!-- dashboard return button removed --></body>
+</html>
