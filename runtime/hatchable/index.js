@@ -73,10 +73,12 @@ export const storage = {
     await fs.rm(storagePath(key), { force: true });
     return { ok: true };
   },
-  async url(key) {
+  async url(key, options = {}) {
     if (!key) return null;
     const safe = safeKey(key);
-    const expires = Math.floor(Date.now() / 1000) + 3600;
+    const requestedTtl = Number(options?.ttl || 3600);
+    const ttl = Number.isFinite(requestedTtl) ? Math.max(60, Math.min(86400, Math.floor(requestedTtl))) : 3600;
+    const expires = Math.floor(Date.now() / 1000) + ttl;
     const params = new URLSearchParams({ key: safe, expires: String(expires), sig: sign(safe, expires) });
     const baseValue = String(process.env.PUBLIC_BASE_URL || `http://localhost:${process.env.PORT || 3000}`);
     const base = baseValue.endsWith("/") ? baseValue.slice(0, -1) : baseValue;
