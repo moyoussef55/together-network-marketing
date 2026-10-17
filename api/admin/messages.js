@@ -10,7 +10,7 @@ async function sendPushToRecipients(ids,subject,message){
  const appId=await optionalConfig("ONESIGNAL_APP_ID"),key=await optionalConfig("ONESIGNAL_REST_API_KEY");
  if(!appId||!key)return {sent:0,warning:"push_not_configured"};
  const text=String(message||"تم إرسال مرفق جديد إليك").slice(0,4000);
- const payload={app_id:appId,target_channel:"push",include_aliases:{external_id:ids.map(String)},headings:{en:subject||"Together Network",ar:subject||"رسالة من إدارة Together"},contents:{en:text,ar:text},url:"https://together-network.hatchable.site/marketer/messages/"};
+ const payload={app_id:appId,target_channel:"push",include_aliases:{external_id:ids.map(String)},headings:{en:subject||"Together Network",ar:subject||"رسالة من إدارة Together"},contents:{en:text,ar:text},url:((await optionalConfig("PUBLIC_BASE_URL")).replace(/\/+$/, "") || "https://together-network.hatchable.site") + "/marketer/messages/"};
  try{
   const r=await fetch("https://api.onesignal.com/notifications",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Key "+key},body:JSON.stringify(payload)});
   const d=await r.json().catch(()=>({}));
