@@ -104,6 +104,23 @@ app.use("/api", upload.any(), async (req, res) => {
   }
 });
 
+app.use(async (req, res, next) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return next();
+  const pathname = new URL(req.originalUrl, "http://localhost").pathname;
+  if (pathname === "/" || pathname.startsWith("/api/") || pathname === "/uploads") return next();
+  let decoded;
+  try { decoded = decodeURIComponent(pathname); } catch { return next(); }
+  const base = path.resolve(PUBLIC_DIR, `.${decoded}`);
+  if (base !== PUBLIC_DIR && !base.startsWith(PUBLIC_DIR + path.sep)) return next();
+  for (const candidate of [`${base}.html`, path.join(base, "index.html")]) {
+    try {
+      const stat = await fs.stat(candidate);
+      if (stat.isFile()) return res.sendFile(candidate);
+    } catch {}
+  }
+  return next();
+});
+
 app.use(express.static(PUBLIC_DIR, { index: "index.html", dotfiles: "deny", fallthrough: true }));
 app.use((_req, res) => res.status(404).send("Not found"));
 app.use((error, _req, res, _next) => {
