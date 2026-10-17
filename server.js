@@ -1,0 +1,113 @@
+import "dotenv/config";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import express from "express";
+import multer from "multer";
+import cookieParser from "cookie-parser";
+import { closeRuntimeResources, verifyStorageSignature } from "hatchable";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PUBLIC_DIR = path.join(__dirname, "public");
+const API_DIR = path.join(__dirname, "api");
+const PORT = Number(process.env.PORT || 3000);
+const app = express();
+app.disable("x-powered-by");
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  next();
+});
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
+app.use(cookieParser());
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 16 * 1024 * 1024, files: 12, fields: 200, fieldSize: 25 * 1024 * 1024 }
+});
+
+app.get("/healthz", async (_req, res) => {
+  const status = { ok: true, runtime: "namecheap-node", database_configured: Boolean(process.env.DATABASE_URL) };
+  if (process.env.DATABASE_URL) {
+    try {
+      const { db } = await import("hatchable");
+      await db.query("SELECT 1");
+      status.database = "connected";
+    } catch (error) {
+      status.ok = false;
+      status.database = "unavailable";
+      status.database_error_code = String(error?.code || "connection_failed").slice(0, 40);
+      return res.status(503).json(status);
+    }
+  } else status.database = "not_configured";
+  return res.json(status);
+});
+
+app.get("/uploads", async (req, res) => {
+  const key = String(req.query.key || "");
+  const expires = String(req.query.expires || "");
+  const sig = String(req.query.sig || "");
+  if (!verifyStorageSignature(key, expires, sig)) return res.status(404).end();
+  try {
+    const root = path.resolve(process.env.STORAGE_DIR || "./var/uploads");
+    const safe = key.replace(/\\/g, "/");
+    if (!safe || safe.startsWith("/") || safe.includes("\0") || safe.split("/").some(p => !p || p === "." || p === "..")) return res.status(404).end();
+    const target = path.resolve(root, safe);
+    if (target !== root && !target.startsWith(root + path.sep)) return res.status(404).end();
+    await fs.access(target);
+    res.setHeader("Cache-Control", "private, max-age=300");
+    return res.sendFile(target);
+  } catch { return res.status(404).end(); }
+});
+
+app.use("/api", upload.any(), async (req, res) => {
+  const pathname = new URL(req.originalUrl, "http://localhost").pathname;
+  let relative;
+  try { relative = decodeURIComponent(pathname.replace(/^\\/api\\/?/, "").replace(/\\/$/, "")); }
+  catch { return res.status(400).json({ error: "invalid_path" }); }
+  if (!relative || relative.includes("\0")) return res.status(404).json({ error: "not_found" });
+  const target = path.resolve(API_DIR, `${relative}.js`);
+  if (target !== API_DIR && !target.startsWith(API_DIR + path.sep)) return res.status(404).json({ error: "not_found" });
+  try { await fs.access(target); } catch { return res.status(404).json({ error: "not_found" }); }
+
+  if (relative === "jobs/network-bv-weekly") {
+    const secret = String(process.env.CRON_SECRET || "");
+    const supplied = String(req.headers.authorization || "").replace(/^Bearer\\s+/i, "");
+    const a = Buffer.from(secret);
+    const b = Buffer.from(supplied);
+    if (secret.length < 32 || a.length !== b.length || !crypto.timingSafeEqual(a, b)) return res.status(404).json({ error: "not_found" });
+    req.headers["x-hatchable-trigger"] = "cron";
+  }
+
+  req.files = (req.files || []).map(file => ({
+    field: file.fieldname, filename: file.originalname, contentType: file.mimetype, buffer: file.buffer, size: file.size
+  }));
+  try {
+    const mod = await import(pathToFileURL(target).href);
+    if (typeof mod.default !== "function") return res.status(500).json({ error: "invalid_api_handler" });
+    return await mod.default(req, res);
+  } catch (error) {
+    console.error("API handler failed:", relative, error?.code || error?.name || "Error");
+    if (res.headersSent) return;
+    return res.status(500).json({ error: "internal_error" });
+  }
+});
+
+app.use(express.static(PUBLIC_DIR, { index: "index.html", dotfiles: "deny", fallthrough: true }));
+app.use((_req, res) => res.status(404).send("Not found"));
+app.use((error, _req, res, _next) => {
+  if (error instanceof multer.MulterError) return res.status(error.code === "LIMIT_FILE_SIZE" ? 413 : 400).json({ error: "upload_rejected", code: error.code });
+  console.error("Request middleware failed:", error?.code || error?.name || "Error");
+  if (!res.headersSent) return res.status(500).json({ error: "internal_error" });
+});
+
+const server = app.listen(PORT, "0.0.0.0", () => console.log(`Together Network runtime listening on port ${PORT}`));
+async function shutdown() {
+  server.close(async () => { await closeRuntimeResources().catch(() => {}); process.exit(0); });
+  setTimeout(() => process.exit(1), 10000).unref();
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
