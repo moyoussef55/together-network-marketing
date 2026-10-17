@@ -1,0 +1,22 @@
+{
+  "name": "together-network-marketing",
+  "version": "435.0.0-namecheap-prep",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20 <25"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check runtime/hatchable/index.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.9",
+    "pg": "^8.16.3",
+    "hatchable": "file:./runtime/hatchable"
+  }
+}
