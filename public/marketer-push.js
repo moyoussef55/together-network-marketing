@@ -1,5 +1,6 @@
 (()=>{"use strict";
-const CONFIG_URL="/api/marketer/push-config";
+const IS_MARKETING_SITE=String(location.hostname||"").toLowerCase()==="marketing.together-v-egp.com";
+const CONFIG_URL=IS_MARKETING_SITE?"/api/marketer/push-config?site=marketing":"/api/marketer/push-config";
 let readyPromise=null,oneSignal=null,userId=null,appId=null;
 const $=s=>document.querySelector(s);
 function status(text){const el=$("#pushStatus");if(el)el.textContent=text}
