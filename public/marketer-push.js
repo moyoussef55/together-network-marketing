@@ -8,8 +8,13 @@ function isIOS(){return /iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigato
 function isStandalone(){return window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true}
 function unsupportedMessage(){
  if(!window.isSecureContext)return "يجب فتح توجيذر عبر اتصال HTTPS آمن لتفعيل الإشعارات.";
- if(!("Notification" in window)||!("serviceWorker" in navigator)||!("PushManager" in window))return "هذا المتصفح لا يدعم إشعارات الويب المطلوبة.";
- if(isIOS()&&!isStandalone())return "على iPhone وiPad، يجب أولًا إضافة توجيذر إلى الشاشة الرئيسية: افتح قائمة المشاركة ثم «إضافة إلى الشاشة الرئيسية»، وبعدها افتح توجيذر من الأيقونة وفعّل الإشعارات.";
+ if(isIOS()&&!isStandalone())return "على iPhone وiPad، يجب أولًا إضافة توجيذر إلى الشاشة الرئيسية: افتح الموقع في Safari، ثم مشاركة > إضافة إلى الشاشة الرئيسية، وفعّل «فتح كتطبيق ويب». بعد ذلك افتح توجيذر من الأيقونة وفعّل الإشعارات. يلزم iOS/iPadOS 16.4 أو أحدث.";
+ if(!("Notification" in window)||!("serviceWorker" in navigator)||!("PushManager" in window)){
+  const ua=String(navigator.userAgent||"");
+  if(/FBAN|FBAV|Instagram|WhatsApp|Telegram|Line\\/|;\\s?wv\\)|WebView/i.test(ua))return "يبدو أنك فتحت توجيذر من داخل تطبيق آخر. افتح قائمة المتصفح واختر «فتح في Chrome» أو افتح الرابط مباشرة في Chrome المحدث، ثم فعّل الإشعارات.";
+  if(isIOS())return "إشعارات الويب على iPhone/iPad تتطلب iOS/iPadOS 16.4 أو أحدث وفتح الموقع كتطبيق من الشاشة الرئيسية. أضف توجيذر إلى الشاشة الرئيسية وافتحه من الأيقونة.";
+  return "هذا المتصفح لا يوفّر واجهات إشعارات الويب اللازمة. افتح الموقع مباشرةً في Chrome محدث على Android (وليس داخل Facebook أو WhatsApp أو تطبيق آخر)، وتأكد من السماح بالإشعارات للموقع.";
+ }
  return "";
 }
 function loadSdk(){
