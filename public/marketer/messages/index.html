@@ -1,16 +1,34 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>رسائلي | Together</title><link rel="stylesheet" href="/theme.css"><script src="/network-session.js"></script><script src="/marketer-push.js?v=441"></script>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>رسائلي | Together</title><link rel="stylesheet" href="/theme.css"><script src="/network-session.js"></script><script src="/marketer-push.js?v=442"></script>
 <style>.wrap{max-width:900px;margin:24px auto;padding:0 14px}.msg{background:#fff;border:1px solid #dbe1e9;border-radius:14px;padding:16px;margin:12px 0;color:#111}.msg.unread{border-right:5px solid #e53945}.muted{color:#6b7280;font-size:13px}.msg strong,.msg .body{color:#111!important}.body{white-space:pre-wrap;line-height:1.8;color:#111!important}.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between}.media{max-width:100%;max-height:420px;display:block;margin:12px 0;border-radius:10px}.push-status{margin:10px 0;color:#334155;font-size:14px}</style></head>
 <body><main class="shell wrap"><header class="top"><div class="logo"><div class="mark">T</div><div>رسائلي وإشعاراتي</div></div><a class="btn" href="/marketer/dashboard/">العودة للوحة المسوق</a></header>
 <section class="card"><div class="bar"><div><h2>صندوق الرسائل</h2><p class="muted">الرسائل المرسلة من إدارة Together.</p></div><button id="readAll" class="btn" type="button">تحديد الكل كمقروء</button></div><div class="bar" style="margin-top:12px"><div><strong>إشعارات الهاتف</strong><p class="muted">فعّلها مرة واحدة على هذا الجهاز لتصلك الإشعارات حتى عندما لا يكون الموقع مفتوحًا.</p></div><button id="enablePush" class="btn primary" type="button">تفعيل إشعارات الهاتف</button></div><p id="pushStatus" class="push-status" aria-live="polite"></p><div id="messages">جارٍ تحميل الرسائل…</div></section></main>
 <script>
-const $=s=>document.querySelector(s);let pushApp=null,pushUser=null;
+const $=s=>document.querySelector(s);let pushApp=null,pushUser=null,pushModulePromise=null;
+async function ensurePushModule(){
+ if(window.TogetherPush&&typeof window.TogetherPush.enable==="function")return window.TogetherPush;
+ if(!pushModulePromise){
+  pushModulePromise=new Promise((resolve,reject)=>{
+   const script=document.createElement("script");
+   script.src="/marketer-push.js?v=442";
+   script.async=true;
+   script.onload=()=>{
+    const unit=window.TogetherPush;
+    if(unit&&typeof unit.enable==="function")resolve(unit);
+    else reject(new Error("تم تحميل ملف الإشعارات لكن لم يبدأ. حدّث الصفحة وحاول مرة أخرى."));
+   };
+   script.onerror=()=>reject(new Error("تعذر تحميل ملف إشعارات الهاتف من الموقع. تحقق من الاتصال ثم أعد المحاولة."));
+   document.head.appendChild(script);
+  }).catch(e=>{pushModulePromise=null;throw e});
+ } 
+ return pushModulePromise;
+}
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function mediaMarkup(m){if(!m.media_url)return "";if(String(m.media_type||"").startsWith("video/"))return '<video class="media" controls preload="metadata" src="'+esc(m.media_url)+'"></video>';return '<a href="'+esc(m.media_url)+'" target="_blank" rel="noopener"><img class="media" src="'+esc(m.media_url)+'" alt="مرفق من الإدارة"></a>'}
 async function load(){const r=await fetch("/api/marketer/messages",{credentials:"include"});if(!r.ok){if(r.status===401||r.status===403){location.href="/login?next=/marketer/messages/";return}throw Error("تعذر تحميل الرسائل")}const d=await r.json(),list=d.messages||[];$("#messages").innerHTML=list.length?list.map(m=>'<article class="msg '+(!m.read_at?'unread':'')+'"><strong>'+esc(m.subject||"رسالة من الإدارة")+'</strong><div class="muted">'+new Date(m.created_at).toLocaleString("ar-EG")+' · '+(m.read_at?'مقروءة':'جديدة')+'</div><p class="body">'+esc(m.message)+'</p>'+mediaMarkup(m)+(!m.read_at?'<button class="btn mark" data-id="'+esc(m.id)+'">تحديد كمقروء</button>':'')+'</article>').join(""):'<p class="muted">لا توجد رسائل حتى الآن.</p>';document.querySelectorAll(".mark").forEach(b=>b.onclick=async()=>{await fetch("/api/marketer/messages",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:b.dataset.id})});load()})}
 $("#readAll").onclick=async()=>{await fetch("/api/marketer/messages",{method:"POST",credentials:"include",headers:{"Content-Type":"application/json"},body:JSON.stringify({id:"all"})});load()};
-async function setupPush(){if(!window.TogetherPush)throw Error("تعذر تحميل وحدة إشعارات الهاتف");await window.TogetherPush.ready();$("#pushStatus").textContent="تم تجهيز الإشعارات. يمكنك الآن تفعيلها."}
-$("#enablePush").onclick=async()=>{const b=$("#enablePush");b.disabled=true;$("#pushStatus").textContent="جارٍ تفعيل إشعارات الهاتف…";try{if(!window.TogetherPush)throw Error("تعذر تحميل وحدة إشعارات الهاتف");await window.TogetherPush.enable()}catch(e){$("#pushStatus").textContent=e.message||"تعذر تفعيل الإشعارات."}finally{b.disabled=false}};
+async function setupPush(){await ensurePushModule();await window.TogetherPush.ready();$("#pushStatus").textContent="تم تجهيز الإشعارات. يمكنك الآن تفعيلها."}
+$("#enablePush").onclick=async()=>{const b=$("#enablePush");b.disabled=true;$("#pushStatus").textContent="جارٍ تفعيل إشعارات الهاتف…";try{await ensurePushModule();await window.TogetherPush.enable()}catch(e){$("#pushStatus").textContent=e.message||"تعذر تفعيل الإشعارات."}finally{b.disabled=false}};
 setupPush().catch(e=>{$("#pushStatus").textContent=e.message||"تعذر تجهيز الإشعارات.";});
 load().catch(e=>$("#messages").textContent=e.message);
 </script><script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=399"></script><script src="/theme-toggle.js?v=399"></script></body></html>
