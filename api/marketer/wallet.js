@@ -13,7 +13,7 @@ export default async function handler(req,res){
   if(profile.rows[0].deleted_at || profile.rows[0].status==="deleted") return res.status(403).json({error:"account_deleted"});
   if(profile.rows[0].login_blocked) return res.status(403).json({error:"login_blocked"});
 
-  const [walletRaw,adminMoves,adminHistory,adminLedger,transactionsRaw,direct,directPendingRows,checks,checkRecords,otherCommissions,withdrawals]=await Promise.all([
+  const [walletRaw,adminMoves,adminHistory,adminLedger,transactionsRaw,direct,directPendingRows,checks,checkRecords,otherCommissions,otherCommissionRows,withdrawals]=await Promise.all([
     db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
     db.query(`SELECT COALESCE(SUM(amount) FILTER(WHERE type='admin_add' AND amount>0),0)::numeric AS transferred_in,
                      COALESCE(ABS(SUM(amount) FILTER(WHERE type='admin_remove' AND amount<0)),0)::numeric AS removed_by_admin
@@ -47,6 +47,7 @@ export default async function handler(req,res){
               FROM network_bv_settlements WHERE member_id=$1 AND check_amount>0
               ORDER BY settled_at DESC,account_position ASC LIMIT 200`,[uid]),
     db.query("SELECT COALESCE(SUM(amount),0)::numeric AS total, COALESCE(SUM(amount) FILTER(WHERE status='paid'),0)::numeric AS paid, COALESCE(SUM(amount) FILTER(WHERE status='pending'),0)::numeric AS pending FROM commission_ledger WHERE marketer_id=$1",[uid]),
+    db.query("SELECT id,amount,status,order_id,created_at FROM commission_ledger WHERE marketer_id=$1 ORDER BY created_at DESC LIMIT 200",[uid]),
     db.query("SELECT id,amount,status,note,created_at FROM withdrawal_requests WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20",[uid])
   ]);
   const scopedWalletResult = await db.query("SELECT get_marketer_wallet_state($1) AS state", [uid]);
@@ -61,7 +62,7 @@ export default async function handler(req,res){
     // If the wallet row is absent, recover the displayed balance from the existing
     // protected admin-adjustment ledger. Never override a present wallet row: it may
     // already reflect legitimate purchases or withdrawals.
-    balance:(wallet.rows.length && (Number(wallet.rows[0]?.balance||0)!==0 || transactions.rows.length>0))
+    balance:wallet.rows.length
       ?Number(wallet.rows[0]?.balance||0)
       :Number(adminHistory.rows[0]?.net||0),
     admin_transfers:{
@@ -77,18 +78,10 @@ export default async function handler(req,res){
       ...transactions.rows,
       ...directPendingRows.rows.map(x=>({id:'direct-pending-'+x.id,type:'direct_commission_pending',amount:Number(x.amount||0),direction:'pending',reference:'عمولة مؤجلة حتى تحديث السبت 12:00 ص',created_at:x.created_at})),
       ...adminLedger.rows.map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
+      ...otherCommissionRows.rows.map(x=>({id:'network-commission-'+x.id,type:'network_commission',amount:Number(x.amount||0),direction:'in',status:x.status||'pending',reference:x.order_id?'طلب '+x.order_id:'عمولة شبكة',created_at:x.created_at})),
       ...checkRecords.rows.map(x=>({id:'check-'+x.id,type:'weekly_check',amount:Number(x.check_amount||0),direction:'check',reference:'التوكيل '+String(x.account_position||1).padStart(2,'0'),created_at:x.settled_at}))
     ].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,100),
-    check_records:checkRecords.rows.length ? checkRecords.rows : (Number(wallet.rows[0]?.balance||0)>0 || Number(adminHistory.rows[0]?.net||0)>0 ? [{
-      id:"wallet-balance",
-      account_position:1,
-      week_start:null,
-      week_end:null,
-      check_amount:(wallet.rows.length && (Number(wallet.rows[0]?.balance||0)!==0 || transactions.rows.length>0))
-        ? Number(wallet.rows[0]?.balance||0)
-        : Number(adminHistory.rows[0]?.net||0),
-      settled_at:new Date().toISOString()
-    }] : []),
+    check_records:checkRecords.rows,
     withdrawals:withdrawals.rows
   });
 }
