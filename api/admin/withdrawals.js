@@ -19,19 +19,21 @@ export default async function(req,res) { if(!(await requireAdminSession(req,res)
     const n=params.length;
     where.push("(COALESCE(w.full_name,'') ILIKE $"+n+" OR COALESCE(w.transfer_phone,'') ILIKE $"+n+" OR COALESCE(a.display_name,'') ILIKE $"+n+" OR COALESCE(a.email,'') ILIKE $"+n+" OR COALESCE(a.phone,'') ILIKE $"+n+" OR COALESCE(a.referral_code,'') ILIKE $"+n+" OR w.id::text ILIKE $"+n+" OR w.user_id ILIKE $"+n+")");
   }
-  const sqlWhere=where.length?"WHERE "+where.join(" AND "):"";
-  const rows=await db.query(`SELECT w.id,w.user_id,w.amount,w.status,w.note,w.full_name,w.transfer_phone,w.created_at,
-      a.display_name,a.email,a.phone AS marketer_phone,a.referral_code,a.status AS marketer_status
-    FROM withdrawal_requests w
-    LEFT JOIN app_profiles a ON a.id=w.user_id
-    ${sqlWhere}
-    ORDER BY CASE WHEN lower(w.status) IN ('pending','قيد الانتظار','under_review') THEN 0 ELSE 1 END,w.created_at DESC
-    LIMIT 500`,params);
-  const stats=await db.query(`SELECT
-    COUNT(*)::int AS total,
-    COUNT(*) FILTER (WHERE lower(status) IN ('pending','قيد الانتظار','under_review'))::int AS pending,
-    COUNT(*) FILTER (WHERE lower(status) IN ('completed','complete','paid','approved','done'))::int AS completed,
-    COUNT(*) FILTER (WHERE lower(status) IN ('cancelled','canceled','rejected','declined','مرفوض','ملغى','ملغي'))::int AS cancelled
-    FROM withdrawal_requests`);
-  return res.json({ok:true,requests:rows.rows.map(x=>({...x,amount:Number(x.amount||0)})),stats:stats.rows[0]||{total:0,pending:0,completed:0,cancelled:0}});
+  // The admin session is checked above. Read through the narrowly scoped database
+  // function because the normal table policy intentionally hides other members' rows.
+  const result=await db.query("SELECT list_network_withdrawals_admin() AS requests");
+  let all=result.rows[0]?.requests||[];
+  if(typeof all==="string"){try{all=JSON.parse(all)}catch{all=[]}}
+  if(!Array.isArray(all)) all=[];
+  const pendingStatus=s=>["pending","قيد الانتظار","under_review"].includes(String(s||"").toLowerCase());
+  const completedStatus=s=>["completed","complete","paid","approved","done"].includes(String(s||"").toLowerCase());
+  const cancelledStatus=s=>["cancelled","canceled","rejected","declined","مرفوض","ملغى","ملغي"].includes(String(s||"").toLowerCase());
+  const stats={total:all.length,pending:all.filter(x=>pendingStatus(x.status)).length,completed:all.filter(x=>completedStatus(x.status)).length,cancelled:all.filter(x=>cancelledStatus(x.status)).length};
+  let filtered=all;
+  if(status==="pending") filtered=filtered.filter(x=>pendingStatus(x.status));
+  else if(status==="completed") filtered=filtered.filter(x=>completedStatus(x.status));
+  else if(status==="cancelled") filtered=filtered.filter(x=>cancelledStatus(x.status));
+  if(q){const needle=q.toLowerCase();filtered=filtered.filter(x=>[x.full_name,x.transfer_phone,x.display_name,x.email,x.marketer_phone,x.referral_code,x.id,x.user_id].some(v=>String(v||"").toLowerCase().includes(needle)))}
+  filtered.sort((a,b)=>(pendingStatus(a.status)?0:1)-(pendingStatus(b.status)?0:1)||new Date(b.created_at||0)-new Date(a.created_at||0));
+  return res.json({ok:true,requests:filtered.slice(0,500).map(x=>({...x,amount:Number(x.amount||0)})),stats});
 }

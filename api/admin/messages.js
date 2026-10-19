@@ -6,17 +6,25 @@ const clean=v=>String(v??"").trim();
 const body=req=>typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
 async function optionalConfig(name){try{return String(await config.get(name)||"").trim()}catch{return ""}}
 async function signedMedia(rows){return Promise.all(rows.map(async row=>({...row,media_url:row.media_key?await storage.url(row.media_key):null})))}
-async function sendPushToRecipients(ids,subject,message){
- const appId=await optionalConfig("ONESIGNAL_APP_ID"),key=await optionalConfig("ONESIGNAL_REST_API_KEY");
- if(!appId||!key)return {sent:0,warning:"push_not_configured"};
- const text=String(message||"تم إرسال مرفق جديد إليك").slice(0,4000);
- const payload={app_id:appId,target_channel:"push",include_aliases:{external_id:ids.map(String)},headings:{en:subject||"Together Network",ar:subject||"رسالة من إدارة Together"},contents:{en:text,ar:text},url:"https://together-network.hatchable.site/marketer/messages/"};
+const MARKETING_ONESIGNAL_APP_ID="437bb9c7-d30d-444a-9a93-0276e15967ff";
+const MARKETING_SITE_ORIGIN="https://marketing.together-v-egp.com";
+async function sendOneSignalPush({appId,key,ids,subject,text,url,label}){
  try{
+  const payload={app_id:appId,target_channel:"push",include_aliases:{external_id:ids.map(String)},headings:{en:subject||"Together Network",ar:subject||"رسالة من إدارة Together"},contents:{en:text,ar:text},url};
   const r=await fetch("https://api.onesignal.com/notifications",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Key "+key},body:JSON.stringify(payload)});
   const d=await r.json().catch(()=>({}));
-  if(!r.ok){console.error("OneSignal notification failed",r.status,JSON.stringify(d).slice(0,1000));return {sent:0,warning:"push_provider_error"}}
+  if(!r.ok){console.error("OneSignal "+label+" notification failed",r.status,JSON.stringify(d).slice(0,1000));return {sent:0,warning:"push_provider_error"}}
   return {sent:Number(d.recipients||0),warning:null};
- }catch(e){console.error("OneSignal request failed",e);return {sent:0,warning:"push_provider_error"}}
+ }catch(e){console.error("OneSignal "+label+" request failed",String(e?.message||e));return {sent:0,warning:"push_provider_error"}}
+}
+async function sendPushToRecipients(ids,subject,message){
+ const marketingKey=await optionalConfig("ONESIGNAL_MARKETING_REST_API_KEY");
+ if(!marketingKey)return {sent:0,warning:"marketing_push_not_configured"};
+ const text=String(message||"تم إرسال مرفق جديد إليك").slice(0,4000);
+ return sendOneSignalPush({
+  appId:MARKETING_ONESIGNAL_APP_ID,key:marketingKey,ids,subject,text,
+  url:MARKETING_SITE_ORIGIN+"/marketer/messages/",label:"marketing"
+ });
 }
 export default async function(req,res){
  if(!(await requireAdminSession(req,res)))return;

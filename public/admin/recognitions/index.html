@@ -27,4 +27,4 @@ $("#comments").onclick=async e=>{const b=e.target.closest("[data-del-comment]");
 $("#memberSearch").oninput=()=>{memberPage=1;renderMembers()};
 $("#members").onchange=async e=>{const c=e.target.closest("[data-control]");if(!c)return;try{await api("control_marketer",{marketer_id:c.dataset.id,field:c.dataset.control,value:c.checked});const m=state.marketers.find(x=>x.id===c.dataset.id);if(m)m[c.dataset.control]=c.checked;say("تم تحديث صلاحيات المسوق.")}catch(e){c.checked=!c.checked;say(e.message)}};
 load().catch(e=>say(e.message));setInterval(refreshActivity,15000);
-</script><script src="/theme-toggle.js"></script></body></html>
+</script><script src="/theme-toggle.js?v=452"></script></body></html>

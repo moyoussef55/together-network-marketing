@@ -146,26 +146,20 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
   const wid=clean(b.withdrawal_id),status=clean(b.status).toLowerCase(),reason=clean(b.reason);
   if(!wid)return res.status(400).json({error:"missing_withdrawal_id"});
   if(!["pending","completed","rejected","cancelled"].includes(status))return res.status(400).json({error:"invalid_withdrawal_status"});
-  const current=await db.query("SELECT id,amount,status FROM withdrawal_requests WHERE id=$1 AND user_id=$2 LIMIT 1",[wid,id]);
-  if(!current.rows.length)return res.status(404).json({error:"withdrawal_not_found"});
-  const old=String(current.rows[0].status||"pending").toLowerCase(),amount=Number(current.rows[0].amount||0);
-  if(["completed","paid","approved","done"].includes(old)&&status!=="completed")return res.status(409).json({error:"completed_withdrawal_cannot_be_reopened"});
-  if(status==="completed"&&!["completed","paid","approved","done"].includes(old)){
-   const w=await db.query("SELECT balance FROM wallets WHERE user_id=$1 LIMIT 1",[id]);
-   if(w.rows.length){
-    if(Number(w.rows[0].balance||0)<amount)return res.status(400).json({error:"insufficient_wallet_balance"});
-    await db.query("UPDATE wallets SET balance=balance-$2,updated_at=now() WHERE user_id=$1",[id,amount]);
-   }else{
-    const base=await db.query("SELECT COALESCE(SUM(CASE WHEN action='remove' THEN -ABS(amount) ELSE ABS(amount) END),0)::numeric AS balance FROM admin_manual_wallet_actions WHERE marketer_id=$1",[id]);
-    const next=Number(base.rows[0]?.balance||0)-amount;
-    if(next<0)return res.status(400).json({error:"insufficient_wallet_balance"});
-    await db.query("INSERT INTO wallets(user_id,balance) VALUES($1,$2)",[id,next]);
-   }
-   await db.query("INSERT INTO wallet_transactions(user_id,type,amount,reference) VALUES($1,'withdrawal',$2,$3)",[id,-amount,"withdrawal:"+wid]);
+  if(status==="rejected"||status==="cancelled"){
+   if(!reason.trim())return res.status(400).json({error:"rejection_reason_required"});
   }
-  await db.query("UPDATE withdrawal_requests SET status=$2,note=$3 WHERE id=$1 AND user_id=$4",[wid,status,status==="rejected"||status==="cancelled"?(reason||"لم يتم ذكر سبب الرفض") : (reason||null),id]);
-  await audit(actor,"withdrawal_"+status,id,{withdrawal_id:wid,amount,reason});
-  return res.json({ok:true});
+  // SECURITY DEFINER function performs the status change and wallet debit atomically,
+  // and can access the request even when ordinary RLS hides it from the admin API session.
+  const result=await db.query("SELECT admin_set_network_withdrawal_status($1::uuid,$2,$3,$4,$5) AS result",[wid,id,status,reason,actor]);
+  let outcome=result.rows[0]?.result||{};
+  if(typeof outcome==="string"){try{outcome=JSON.parse(outcome)}catch{outcome={ok:false,error:"withdrawal_update_failed"}}}
+  if(!outcome.ok){
+   const code=outcome.error||"withdrawal_update_failed";
+   const http=code==="withdrawal_not_found"?404:code==="insufficient_wallet_balance"?400:code==="completed_withdrawal_cannot_be_reopened"?409:400;
+   return res.status(http).json({error:code,available_balance:outcome.available_balance});
+  }
+  return res.json({ok:true,status:outcome.status||status,already_completed:!!outcome.already_completed,amount:Number(outcome.amount||0)});
  }
  if(action==="edit"){
   if(Object.prototype.hasOwnProperty.call(b,"referral_code")){const code=clean(b.referral_code);if(!/^TO[a-z0-9]{5}$/i.test(code))return res.status(400).json({error:"invalid_marketer_id_format"});b.referral_code="TO"+code.slice(2).toLowerCase();}

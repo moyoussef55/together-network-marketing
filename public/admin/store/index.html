@@ -16,4 +16,4 @@ async function toggleProduct(id){try{await post({action:'toggle_product',product
 async function deleteProduct(id){if(!confirm('هل أنت متأكد من حذف المنتج؟ سيتم حذف صوره أيضًا ولا يمكن التراجع عن ذلك.'))return;try{await post({action:'delete_product',product_id:id});await load()}catch(e){alert(e.message)}}
 async function toggleCat(id){try{await post({action:'toggle_category',category_id:id});await load()}catch(e){alert(e.message)}}
 load();
-</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js"></script></body></html>
+</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=452"></script></body></html>

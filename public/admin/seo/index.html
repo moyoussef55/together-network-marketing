@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>إدارة SEO والذكاء الاصطناعي | Together</title><link rel="stylesheet" href="/theme.css">
+<style>
+body{margin:0;background:#f3f6fb;color:#111827;font-family:Tahoma,Arial,sans-serif}.shell{max-width:1120px;margin:auto;padding:18px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0}.panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 8px 24px #1018280a}.panel h1,.panel h2{margin-top:0}.hint{color:#64748b;line-height:1.8}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field{display:grid;gap:7px;font-weight:800}.field input,.field textarea,.field select{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:12px;background:#fff;color:#111827;font:inherit}.field textarea{min-height:95px;resize:vertical}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.btn{border:2px solid #111827;background:#fff;color:#111827;border-radius:10px;padding:11px 16px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn.primary{background:#111827;color:#fff}.btn.ai{background:#0f766e;color:#fff;border-color:#0f766e}.btn:disabled{opacity:.6;cursor:wait}.status{white-space:pre-wrap;margin-top:12px;font-weight:800;line-height:1.8}.score{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.metric{padding:15px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}.metric b{display:block;font-size:24px;margin-bottom:4px}.checks{display:grid;gap:8px}.check{padding:10px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.good{color:#15803d}.bad{color:#b91c1c}.warn{color:#92400e}.tip{padding:10px 12px;border-right:4px solid #0f766e;background:#f0fdfa;border-radius:8px;margin:8px 0;line-height:1.7}@media(max-width:720px){.fields,.score{grid-template-columns:1fr}.full{grid-column:auto}.panel{padding:16px}.shell{padding:12px}}
+/* Hide the platform attribution badge only on this SEO admin page. */
+body a[href*="hatchable.com/?utm_source=badge"],body a[href*="utm_content=together-network"],a[href*="hatchable.com"][href*="utm_medium=app"]{display:none!important;visibility:hidden!important;pointer-events:none!important}
+</style></head>
+<body><main class="shell">
+<header class="top"><div><h1 style="margin:0">🚀 مركز SEO والذكاء الاصطناعي</h1><div class="hint">تحسين بيانات البحث والمشاركة ومراجعة أساسيات الظهور للموقع العام.</div></div><a class="btn" href="/admin/">العودة للوحة الإدارة</a></header>
+<section class="panel"><h2>🧠 مولّد بيانات SEO بالذكاء الاصطناعي</h2><p class="hint">اكتب موضوع الصفحة ومحتواها أو الصق النص الأساسي، ثم اضغط توليد. ستُملأ الحقول كمسودة للمراجعة ولن تُحفظ قبل ضغط زر الحفظ.</p><div class="tip">ملاحظة تشغيل: التوليد الآلي يحتاج تفعيل Builder + AI من إعدادات Hatchable أو ربط مفتاح OpenAI API. إذا لم تكن الخدمة مفعّلة فستظل حقول SEO اليدوية والحفظ متاحة.</div>
+<div class="fields">
+<label class="field">موضوع الصفحة أو الخدمة<input id="topic" maxlength="1200" placeholder="مثال: منصة إدارة شبكة المبيعات والإنجازات"></label>
+<label class="field">العبارة المفتاحية المستهدفة<input id="focusPhrase" maxlength="180" placeholder="العبارة الأساسية"></label>
+<label class="field full">محتوى الصفحة أو ملخصها<textarea id="content" maxlength="5000" placeholder="اكتب أهم ما تقدمه الصفحة والفائدة الحقيقية للزائر"></textarea></label>
+</div><div class="actions"><button class="btn ai" id="generate">✨ توليد بيانات SEO بالذكاء الاصطناعي</button><button class="btn" id="clearAi" type="button">مسح مدخلات التوليد</button></div><div id="aiStatus" class="status" role="status" aria-live="polite"></div><div id="tips"></div></section>
+<section class="panel"><h2>⚙️ إعدادات SEO العامة</h2>
+<div class="fields">
+<label class="field">اسم الموقع<input id="siteName" maxlength="120"></label>
+<label class="field">لغة المحتوى<select id="language"><option value="ar">العربية</option><option value="en">English</option></select></label>
+<label class="field full">عنوان SEO (Title)<input id="title" maxlength="180"><span class="hint" id="titleCount"></span></label>
+<label class="field full">وصف محركات البحث (Meta Description)<textarea id="description" maxlength="320"></textarea><span class="hint" id="descCount"></span></label>
+<label class="field full">كلمات وعبارات ذات صلة<input id="keywords" maxlength="600" placeholder="افصل بين العبارات بفواصل"></label>
+<label class="field full">الرابط الأساسي Canonical URL<input id="canonicalUrl" type="url" maxlength="500" placeholder="https://marketing.together-v-egp.com/"></label>
+<label class="field">عنوان المشاركة (Open Graph)<input id="ogTitle" maxlength="180"></label>
+<label class="field">وصف المشاركة<textarea id="ogDescription" maxlength="320"></textarea></label>
+<label class="field full">رابط صورة المشاركة HTTPS<input id="ogImage" type="url" maxlength="1000" placeholder="https://..."></label>
+<label class="field">تعليمات الفهرسة<select id="robots"><option value="index,follow">السماح بالفهرسة واتباع الروابط</option><option value="noindex,follow">منع الفهرسة واتباع الروابط</option><option value="index,nofollow">الفهرسة دون اتباع الروابط</option><option value="noindex,nofollow">منع الفهرسة واتباع الروابط</option></select></label>
+<label class="field">نوع البيانات المنظمة Schema.org<select id="schemaType"><option>Organization</option><option>WebSite</option><option>EducationalOrganization</option><option>LocalBusiness</option></select></label>
+<label class="field">اسم المؤسسة<input id="organizationName" maxlength="180"></label>
+<label class="field">رابط المؤسسة<input id="organizationUrl" type="url" maxlength="500"></label>
+<label class="field full">رابط شعار المؤسسة HTTPS<input id="organizationLogo" type="url" maxlength="1000"></label>
+</div><div class="actions"><button class="btn primary" id="save">حفظ إعدادات SEO</button><button class="btn" id="reload">إعادة تحميل المحفوظ</button><a class="btn" href="/" target="_blank" rel="noopener">معاينة الموقع العام</a></div><div id="saveStatus" class="status" role="status" aria-live="polite"></div></section>
+<section class="panel"><h2>📊 فحص سريع لبيانات SEO</h2><p class="hint">هذا فحص إرشادي للحقول المحفوظة، وليس تقييمًا من Google ولا وعدًا بترتيب معين.</p><div class="score"><div class="metric"><b id="scoreValue">—</b>مؤشر اكتمال الحقول</div><div class="metric"><b id="titleMetric">—</b>طول العنوان</div><div class="metric"><b id="descMetric">—</b>طول الوصف</div><div class="metric"><b id="canonicalMetric">—</b>الرابط الأساسي</div></div><div id="checks" class="checks" style="margin-top:12px"></div><p class="hint">ملاحظة: Google لا يستخدم وسم meta keywords في ترتيب نتائج البحث. ركّز على محتوى مفيد وفريد، وعناوين واضحة، وروابط داخلية سليمة، وسرعة الموقع وتجربة الهاتف.</p></section>
+</main>
+<script>
+const ids=["siteName","language","title","description","keywords","canonicalUrl","ogTitle","ogDescription","ogImage","robots","schemaType","organizationName","organizationUrl","organizationLogo"];
+const $=id=>document.getElementById(id);
+function values(){const o={};for(const id of ids)o[id]=$(id).value.trim();return o}
+function fill(s){for(const id of ids)$(id).value=s[id]??"";updateAudit()}
+function audit(){const s=values(),t=s.title.length,d=s.description.length;const checks=[
+[t>=30&&t<=65,"عنوان SEO","يفضل عنوان واضح ومميز، غالبًا 30–65 حرفًا بحسب اللغة."],
+[d>=100&&d<=180,"وصف الصفحة","وصف مفيد ومحدد، غالبًا 100–180 حرفًا؛ قد يعيد Google صياغته."],
+[!!s.canonicalUrl&&/^https:\/\//i.test(s.canonicalUrl),"الرابط الأساسي","يجب أن يشير إلى النسخة المفضلة الصحيحة من الصفحة."],
+[!!s.ogTitle&&!!s.ogDescription,"بيانات المشاركة","أكمل عنوان ووصف المشاركة عند مشاركة الرابط."],
+[!!s.organizationName&&!!s.organizationUrl,"هوية المؤسسة","تأكد أن الاسم والرابط يطابقان معلومات حقيقية."],
+[!!s.ogImage&&/^https:\/\//i.test(s.ogImage),"صورة المشاركة","أضف صورة مناسبة عبر HTTPS لعرض أفضل على الشبكات الاجتماعية."],
+[s.robots==="index,follow","الفهرسة","تأكد أن منع الفهرسة مقصود فقط إذا اخترت noindex."]
+];return {checks,score:Math.round(checks.filter(x=>x[0]).length/checks.length*100),t,d}}
+function updateAudit(){const a=audit();$("scoreValue").textContent=a.score+"%";$("titleMetric").textContent=a.t+" حرف";$("descMetric").textContent=a.d+" حرف";$("canonicalMetric").textContent=/^https:\/\//i.test($("canonicalUrl").value.trim())?"صالح مبدئيًا":"يحتاج مراجعة";$("titleCount").textContent=a.t+" / 180 حرفًا";$("descCount").textContent=a.d+" / 320 حرفًا";$("checks").innerHTML=a.checks.map(x=>'<div class="check '+(x[0]?'good':'warn')+'">'+(x[0]?'✓ ':'! ')+x[1]+' — '+x[2]+'</div>').join("")}
+async function load(){ $("saveStatus").textContent="جارٍ تحميل الإعدادات…";try{const r=await fetch("/api/admin/seo-settings",{credentials:"same-origin",cache:"no-store"});const d=await r.json();if(!r.ok){if(r.status===401){$("saveStatus").textContent="انتهت جلسة الإدارة أو لم تسجل الدخول. افتح لوحة الإدارة وسجّل الدخول.";return}throw Error(d.error||"تعذر تحميل الإعدادات")}fill(d.settings||{});$("saveStatus").textContent=d.updatedAt?"آخر حفظ: "+new Date(d.updatedAt).toLocaleString("ar-EG"):"تم تحميل الإعدادات الافتراضية."}catch(e){$("saveStatus").textContent="تعذر تحميل إعدادات SEO: "+e.message}}
+$("save").onclick=async()=>{const b=$("save");b.disabled=true;$("saveStatus").textContent="جارٍ الحفظ…";try{const r=await fetch("/api/admin/seo-settings",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(values())});const d=await r.json();if(!r.ok)throw Error(d.message||d.error||"تعذر الحفظ");fill(d.settings);$("saveStatus").textContent="✓ تم حفظ إعدادات SEO. ستُستخدم على الواجهة العامة بعد تحديثها."}catch(e){$("saveStatus").textContent="تعذر الحفظ: "+e.message}finally{b.disabled=false}};
+$("reload").onclick=load;
+$("generate").onclick=async()=>{const b=$("generate");b.disabled=true;$("aiStatus").textContent="جارٍ إنشاء اقتراحات SEO…";$("tips").innerHTML="";try{const r=await fetch("/api/admin/seo-generate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({topic:$("topic").value,keywords:$("focusPhrase").value||$("keywords").value,content:$("content").value,language:$("language").value})});const d=await r.json();if(!r.ok)throw Error(d.message||d.error||"تعذر التوليد");const s=d.seo||{};for(const k of ["title","description","keywords","ogTitle","ogDescription","schemaType"])if(s[k])$(k).value=s[k];if(s.focusPhrase)$("focusPhrase").value=s.focusPhrase;updateAudit();$("aiStatus").textContent="✓ تم توليد مسودة. راجع دقة المعلومات ثم اضغط «حفظ إعدادات SEO» لتطبيقها."; $("tips").innerHTML=(s.suggestions||[]).map(t=>'<div class="tip">'+esc(t)+'</div>').join("")}catch(e){$("aiStatus").textContent="تعذر التوليد: "+e.message}finally{b.disabled=false}};
+$("clearAi").onclick=()=>{$("topic").value="";$("focusPhrase").value="";$("content").value="";$("aiStatus").textContent="تم مسح مدخلات التوليد.";$("tips").innerHTML=""};
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+for(const id of ids)$(id).addEventListener("input",updateAudit);load();
+</script></body></html>
