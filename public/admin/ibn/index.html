@@ -16,6 +16,7 @@ input{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;border:2p
 .badge{padding:5px 9px;border-radius:20px;background:#183b60}.used{background:#49351a;color:#ffd27a}.available{background:#123b2b;color:#8ff0bd}
 .pages{display:flex;gap:7px;flex-wrap:wrap;margin-top:15px}.pages button{border:1px solid #36516e;background:#102238;color:#fff;padding:8px 12px;border-radius:8px;cursor:pointer}.pages button.active{background:#1683ff}
 .count{color:#9db1c8;margin-bottom:10px}
+.copy-ibn{margin:0;padding:6px 11px;border:1px solid #2c956b;border-radius:8px;background:#123b2b;color:#9ff0c4;font-size:13px;font-weight:800;cursor:pointer}.copy-ibn:hover{background:#19583f}.copy-ibn.copied{background:#1683ff;border-color:#1683ff;color:#fff}
 @media(max-width:800px){.form-grid{grid-template-columns:1fr}.tools{flex-direction:column;align-items:stretch}.tools input{max-width:none}}
 </style>
 </head>
@@ -34,14 +35,14 @@ input{box-sizing:border-box;width:100%;padding:13px;border-radius:10px;border:2p
 <div class="card">
 <h2>الـ IBNات</h2>
 <div class="count" id="count"></div>
-<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>القيمة</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>تاريخ الإنشاء</th></tr></thead><tbody id="list"></tbody></table></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>نسخ</th><th>القيمة</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>تاريخ الإنشاء</th></tr></thead><tbody id="list"></tbody></table></div>
 <div class="pages" id="pages"></div>
 </div>
 
 <div class="card">
 <h2>سجل الـ IBN</h2>
 <div class="tools"><input id="search" placeholder="ابحث بالـ IBN أو ID المنشئ أو ID الأبلاين أو ID المسجل به"><button class="btn" id="searchBtn" style="margin:0">بحث</button></div>
-<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>القيمة</th><th>ID الذي أنشأ IBN</th><th>ID الأبلاين</th><th>ID المسجل به</th><th>موعد التسجيل</th><th>تاريخ الإنشاء</th><th>الانتهاء</th></tr></thead><tbody id="log"></tbody></table></div>
+<div class="table-wrap"><table class="table"><thead><tr><th>IBN</th><th>نسخ</th><th>القيمة</th><th>ID الذي أنشأ IBN</th><th>ID الأبلاين</th><th>ID المسجل به</th><th>موعد التسجيل</th><th>تاريخ الإنشاء</th><th>الانتهاء</th></tr></thead><tbody id="log"></tbody></table></div>
 <div class="pages" id="logPages"></div>
 </div>
 </main>
@@ -50,19 +51,45 @@ const $=id=>document.getElementById(id);
 let all=[],logs=[],page=1,logPage=1,search="";
 const perPage=10;
 const fmt=v=>v?new Date(v).toLocaleString("ar-EG",{year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"}):"—";
+async function copyIbnCode(code,button){
+  if(!code)return;
+  try{
+    if(navigator.clipboard&&window.isSecureContext){
+      await navigator.clipboard.writeText(code);
+    }else{
+      const field=document.createElement("textarea");
+      field.value=code;field.setAttribute("readonly","");field.style.position="fixed";field.style.opacity="0";
+      document.body.appendChild(field);field.select();
+      const copied=document.execCommand("copy");field.remove();
+      if(!copied)throw new Error("copy_failed");
+    }
+    button.textContent="تم النسخ ✓";button.classList.add("copied");
+    window.setTimeout(()=>{if(document.body.contains(button)){button.textContent="نسخ";button.classList.remove("copied")}},1400);
+  }catch{
+    window.prompt("انسخ كود الـ IBN:",code);
+  }
+}
+document.addEventListener("click",event=>{
+  const button=event.target.closest("[data-copy-list],[data-copy-log]");
+  if(!button)return;
+  const code=button.hasAttribute("data-copy-list")
+    ? all[Number(button.dataset.copyList)]?.code
+    : logs[Number(button.dataset.copyLog)]?.code;
+  copyIbnCode(code,button);
+});
 function pager(host,total,current,cb){
   host.innerHTML="";const n=Math.max(1,Math.ceil(total/perPage));
   for(let i=1;i<=n;i++){const b=document.createElement("button");b.textContent=i;b.className=i===current?"active":"";b.onclick=()=>cb(i);host.appendChild(b)}
 }
 function renderList(){
   const start=(page-1)*perPage,rows=all.slice(start,start+perPage);
-  $("list").innerHTML=rows.map(x=>`<tr><td><b>${x.code}</b></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${fmt(x.expires_at)}</td><td><span class="badge ${x.used_count>0?"used":"available"}">${x.used_count>0?"مستخدم":"متاح"}</span></td><td>${fmt(x.created_at)}</td></tr>`).join("")||'<tr><td colspan="5">لا توجد IBNات</td></tr>';
+  $("list").innerHTML=rows.map((x,i)=>`<tr><td><b>${x.code}</b></td><td><button type="button" class="copy-ibn" data-copy-list="${start+i}">نسخ</button></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${fmt(x.expires_at)}</td><td><span class="badge ${x.used_count>0?"used":"available"}">${x.used_count>0?"مستخدم":"متاح"}</span></td><td>${fmt(x.created_at)}</td></tr>`).join("")||'<tr><td colspan="6">لا توجد IBNات</td></tr>';
   $("count").textContent="إجمالي IBNات: "+all.length;
   pager($("pages"),all.length,page,i=>{page=i;renderList()});
 }
 function renderLog(){
   const start=(logPage-1)*perPage,rows=logs.slice(start,start+perPage);
-  $("log").innerHTML=rows.map(x=>`<tr><td><b>${x.code}</b></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${x.created_by_id||"—"}</td><td>${x.used_by_upline_id||"—"}</td><td>${x.registered_agent_id||"—"}</td><td>${fmt(x.used_at)}</td><td>${fmt(x.created_at)}</td><td>${fmt(x.expires_at)}</td></tr>`).join("")||'<tr><td colspan="8">لا توجد سجلات</td></tr>';
+  $("log").innerHTML=rows.map((x,i)=>`<tr><td><b>${x.code}</b></td><td><button type="button" class="copy-ibn" data-copy-log="${start+i}">نسخ</button></td><td>${Number(x.amount).toFixed(2)} جنيه</td><td>${x.created_by_id||"—"}</td><td>${x.used_by_upline_id||"—"}</td><td>${x.registered_agent_id||"—"}</td><td>${fmt(x.used_at)}</td><td>${fmt(x.created_at)}</td><td>${fmt(x.expires_at)}</td></tr>`).join("")||'<tr><td colspan="9">لا توجد سجلات</td></tr>';
   pager($("logPages"),logs.length,logPage,i=>{logPage=i;renderLog()});
 }
 async function load(){
