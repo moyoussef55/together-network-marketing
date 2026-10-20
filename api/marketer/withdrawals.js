@@ -1,6 +1,7 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
 import { requireNetworkUser } from "../../lib/network-auth.js";
+import { reconcileWeeklyCheckCredits } from "../../lib/wallet-check-reconciliation.js";
 
 export const access = "public";
 export const methods = ["GET", "POST"];
@@ -17,6 +18,8 @@ async function profileFor(uid) {
   return r.rows[0];
 }
 async function balanceFor(uid) {
+  // Reconcile recorded checks before calculating withdrawal eligibility.
+  await reconcileWeeklyCheckCredits(uid);
   // Use the same scoped wallet-state function as the marketer wallet page.
   // Direct reads of wallets/wallet_transactions can be hidden by row-level policies,
   // incorrectly making a funded account look empty during withdrawal validation.
