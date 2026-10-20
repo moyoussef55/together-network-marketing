@@ -109,7 +109,13 @@ export default async function handler(req,res){
       other_commissions:{total:Number(otherCommissions.rows[0]?.total||0),paid:Number(otherCommissions.rows[0]?.paid||0),pending:Number(otherCommissions.rows[0]?.pending||0)}
     },
     transactions:[
-      ...transactions.rows,
+      ...transactions.rows.map(x=>{
+        if(x.type==='weekly_check' && typeof x.reference==='string'){
+          const match=x.reference.match(/^weekly-check:\d{4}-\d{2}-\d{2}:[^:]+:(\d+)$/);
+          if(match) return {...x,direction:'check',reference:'التوكيل '+String(Number(match[1]||1)).padStart(2,'0')};
+        }
+        return x;
+      }),
       ...directPendingRows.rows.map(x=>({id:'direct-pending-'+x.id,type:'direct_commission_pending',amount:Number(x.amount||0),direction:'pending',reference:'عمولة مؤجلة حتى تحديث السبت 12:00 ص',created_at:x.created_at})),
       ...adminLedger.rows.filter(x=>!transactions.rows.some(t=>t.type===(x.action==='remove'?'admin_remove':'admin_add')&&Math.abs(Number(t.amount||0))===Math.abs(Number(x.amount||0))&&Math.abs(new Date(t.created_at).getTime()-new Date(x.created_at).getTime())<=10000)).map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
       ...otherCommissionRows.rows.map(x=>({id:'network-commission-'+x.id,type:'network_commission',amount:Number(x.amount||0),direction:'in',status:x.status||'pending',reference:x.order_id?'طلب '+x.order_id:'عمولة شبكة',created_at:x.created_at})),
