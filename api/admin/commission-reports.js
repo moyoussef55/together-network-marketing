@@ -21,7 +21,7 @@ export default async function handler(req, res) {
     let search = "";
     if (q) {
       params.push("%" + q.toLowerCase() + "%");
-      search = " AND (lower(COALESCE(p.display_name,'')) LIKE $2 OR lower(COALESCE(p.referral_code,'')) LIKE $2 OR lower(p.id) LIKE $2)";
+      search = " AND (lower(COALESCE(p.display_name,'')) LIKE $2 OR lower(COALESCE(p.referral_code,'')) LIKE $2 OR lower(p.id::text) LIKE $2)";
     }
     const count = await db.query(`
       SELECT count(*)::int AS total FROM (
@@ -60,7 +60,7 @@ export default async function handler(req, res) {
     let search = "";
     if (q) {
       params.push("%" + q.toLowerCase() + "%");
-      search = " WHERE lower(COALESCE(p.display_name,'')) LIKE $1 OR lower(COALESCE(p.referral_code,'')) LIKE $1 OR lower(p.id) LIKE $1";
+      search = " WHERE lower(COALESCE(p.display_name,'')) LIKE $1 OR lower(COALESCE(p.referral_code,'')) LIKE $1 OR lower(p.id::text) LIKE $1";
     }
     const base = `
       WITH all_commissions AS (
@@ -98,11 +98,11 @@ export default async function handler(req, res) {
         LEFT JOIN orders o ON o.id=dc.order_id
         LEFT JOIN app_profiles buyer ON buyer.id=o.marketer_id
        WHERE lower(dc.order_id::text)=lower($1)
-          OR lower(COALESCE(buyer.id,''))=lower($1)
+          OR lower(COALESCE(buyer.id::text,''))=lower($1)
           OR lower(COALESCE(buyer.referral_code,''))=lower($1)
-          OR lower(COALESCE(recipient.id,''))=lower($1)
+          OR lower(COALESCE(recipient.id::text,''))=lower($1)
           OR lower(COALESCE(recipient.referral_code,''))=lower($1)
-          OR lower(COALESCE(buyer.id,'')) LIKE '%'||lower($1)||'%'
+          OR lower(COALESCE(buyer.id::text,'')) LIKE '%'||lower($1)||'%'
           OR lower(COALESCE(buyer.referral_code,'')) LIKE '%'||lower($1)||'%'
        ORDER BY COALESCE(dc.paid_at,dc.created_at) DESC LIMIT 100
     `, [q]);
