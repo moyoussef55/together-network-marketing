@@ -28,7 +28,8 @@ export default async function handler(req, res) {
         SELECT s.member_id
           FROM network_bv_settlements s
           JOIN app_profiles p ON p.id=s.member_id
-         WHERE s.check_amount > 0 AND $1::date BETWEEN s.week_start AND s.week_end
+         WHERE s.check_amount > 0 AND s.settled_at <= now()
+           AND $1::date BETWEEN s.week_start AND s.week_end
            AND p.deleted_at IS NULL ${search}
          GROUP BY s.member_id
         HAVING sum(s.check_amount) > 0
@@ -41,11 +42,19 @@ export default async function handler(req, res) {
              count(*) FILTER (WHERE s.check_amount>0)::int AS settlement_count,
              sum(s.right_bv)::numeric AS bv_right_before, sum(s.left_bv)::numeric AS bv_left_before,
              sum(s.carry_right)::numeric AS bv_right_after, sum(s.carry_left)::numeric AS bv_left_after,
+             json_agg(json_build_object(
+               'account_position',s.account_position,
+               'right_bv_before',s.right_bv,'left_bv_before',s.left_bv,
+               'carry_right_after',s.carry_right,'carry_left_after',s.carry_left,
+               'check_amount',s.check_amount,'settled_at',s.settled_at
+             ) ORDER BY s.account_position) AS positions_detail,
+             max(s.settled_at) AS update_at,
              min(s.week_start)::date AS week_start, max(s.week_end)::date AS week_end,
              string_agg(DISTINCT s.account_position::text, ', ' ORDER BY s.account_position::text) AS positions
         FROM network_bv_settlements s
         JOIN app_profiles p ON p.id=s.member_id
-       WHERE s.check_amount > 0 AND $1::date BETWEEN s.week_start AND s.week_end
+       WHERE s.check_amount > 0 AND s.settled_at <= now()
+         AND $1::date BETWEEN s.week_start AND s.week_end
          AND p.deleted_at IS NULL ${search}
        GROUP BY p.id,p.referral_code,p.display_name,p.first_name,p.second_name,p.third_name,p.fourth_name
       HAVING sum(s.check_amount)>0
