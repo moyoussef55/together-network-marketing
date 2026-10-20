@@ -1,5 +1,6 @@
 import { db, config } from "hatchable";
 import { requireNetworkUser } from "../../lib/network-auth.js";
+import { reconcileWeeklyCheckCredits } from "../../lib/wallet-check-reconciliation.js";
 
 const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[ch]));
 const money = value => Number(value || 0).toLocaleString("ar-EG", {maximumFractionDigits:2});
@@ -115,6 +116,9 @@ export default async function(req,res){
   const variantProducts=await db.query("SELECT id,product_type,sizes,colors FROM products WHERE id=ANY($1::uuid[])",[merged.map(x=>x.product_id)]);
   const variantById=new Map(variantProducts.rows.map(p=>[String(p.id),p]));
   for(const item of merged){const p=variantById.get(item.product_id);if(!p)continue;if(p.product_type==="clothing"){const sizes=Array.isArray(p.sizes)?p.sizes:[],colors=Array.isArray(p.colors)?p.colors:[];if(sizes.length&&!item.selected_size)return res.status(400).json({error:"size_required"});if(colors.length&&!item.selected_color)return res.status(400).json({error:"color_required"});if(item.selected_size&&!sizes.includes(item.selected_size))return res.status(400).json({error:"invalid_size"});if(item.selected_color&&!colors.includes(item.selected_color))return res.status(400).json({error:"invalid_color"});}}
+
+  // Reconcile recorded checks before the atomic checkout validates spendable balance.
+  await reconcileWeeklyCheckCredits(uid);
 
   // Keep wallet reconciliation, debit, stock, order and transaction writes inside
   // one database function so the custom marketer session's RLS context is retained.
