@@ -55,6 +55,15 @@ export default async function handler(req,res){
   if (typeof scopedWallet === "string") { try { scopedWallet = JSON.parse(scopedWallet); } catch { scopedWallet = {}; } }
   const wallet = { rows: scopedWallet.wallet_found ? [{ balance: scopedWallet.balance }] : [] };
   const transactions = { rows: Array.isArray(scopedWallet.transactions) ? scopedWallet.transactions : [] };
+  // Weekly checks are credited to wallets when paid. Keep the display tied to the
+  // spendable wallet balance; summing settlement rows again would count paid checks twice.
+  const pendingWithdrawals = withdrawals.rows
+    .filter(x => ['pending','قيد الانتظار','under_review','in_review','processing','جارى المراجعة','جاري المراجعة','قيد المراجعة'].includes(String(x.status||'').trim().toLowerCase()))
+    .reduce((sum,x)=>sum+Number(x.amount||0),0);
+  const storedBalance = wallet.rows.length
+      ? Number(wallet.rows[0]?.balance||0)
+      : Number(adminHistory.rows[0]?.net||0);
+  const currentBalance = storedBalance - pendingWithdrawals;
 
   return res.json({
     ok:true,
@@ -62,9 +71,7 @@ export default async function handler(req,res){
     // If the wallet row is absent, recover the displayed balance from the existing
     // protected admin-adjustment ledger. Never override a present wallet row: it may
     // already reflect legitimate purchases or withdrawals.
-    balance:wallet.rows.length
-      ?Number(wallet.rows[0]?.balance||0)
-      :Number(adminHistory.rows[0]?.net||0),
+    balance:Math.max(0,currentBalance),
     admin_transfers:{
       credited:Number(adminMoves.rows[0]?.transferred_in||0)||Number(adminHistory.rows[0]?.credited||0),
       removed:Number(adminMoves.rows[0]?.removed_by_admin||0)||Number(adminHistory.rows[0]?.removed||0)
@@ -77,7 +84,7 @@ export default async function handler(req,res){
     transactions:[
       ...transactions.rows,
       ...directPendingRows.rows.map(x=>({id:'direct-pending-'+x.id,type:'direct_commission_pending',amount:Number(x.amount||0),direction:'pending',reference:'عمولة مؤجلة حتى تحديث السبت 12:00 ص',created_at:x.created_at})),
-      ...adminLedger.rows.map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
+      ...adminLedger.rows.filter(x=>!transactions.rows.some(t=>t.type===(x.action==='remove'?'admin_remove':'admin_add')&&Math.abs(Number(t.amount||0))===Math.abs(Number(x.amount||0))&&Math.abs(new Date(t.created_at).getTime()-new Date(x.created_at).getTime())<=10000)).map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
       ...otherCommissionRows.rows.map(x=>({id:'network-commission-'+x.id,type:'network_commission',amount:Number(x.amount||0),direction:'in',status:x.status||'pending',reference:x.order_id?'طلب '+x.order_id:'عمولة شبكة',created_at:x.created_at})),
       ...checkRecords.rows.map(x=>({id:'check-'+x.id,type:'weekly_check',amount:Number(x.check_amount||0),direction:'check',reference:'التوكيل '+String(x.account_position||1).padStart(2,'0'),created_at:x.settled_at}))
     ].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,100),
