@@ -1,5 +1,6 @@
 import { db } from "hatchable";
 import { requireNetworkUser } from "../../lib/network-auth.js";
+import { reconcileWeeklyCheckCredits } from "../../lib/wallet-check-reconciliation.js";
 
 export const access = "public";
 export const methods = ["GET"];
@@ -12,6 +13,9 @@ export default async function handler(req,res){
   if(!profile.rows.length || profile.rows[0].role!=="marketer") return res.status(403).json({error:"marketer_only"});
   if(profile.rows[0].deleted_at || profile.rows[0].status==="deleted") return res.status(403).json({error:"account_deleted"});
   if(profile.rows[0].login_blocked) return res.status(403).json({error:"login_blocked"});
+
+  // Ensure recorded weekly checks are reflected in the real spendable wallet.
+  await reconcileWeeklyCheckCredits(uid);
 
   const [walletRaw,adminMoves,adminHistory,adminLedger,transactionsRaw,direct,directPendingRows,checks,checkRecords,otherCommissions,otherCommissionRows,withdrawals]=await Promise.all([
     db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
