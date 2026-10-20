@@ -20,19 +20,25 @@ async function balanceFor(uid) {
   // Use the same scoped wallet-state function as the marketer wallet page.
   // Direct reads of wallets/wallet_transactions can be hidden by row-level policies,
   // incorrectly making a funded account look empty during withdrawal validation.
+  let storedBalance = 0;
+  let foundWallet = false;
   try {
     const scoped = await db.query("SELECT get_marketer_wallet_state($1) AS state",[uid]);
     let state=scoped.rows[0]?.state||{};
     if(typeof state==="string"){try{state=JSON.parse(state)}catch{state={}}}
-    if(state.wallet_found) return Number(state.balance||0);
+    if(state.wallet_found){storedBalance=Number(state.balance||0);foundWallet=true;}
   } catch {}
-  const [wallet,tx,admin] = await Promise.all([
-    db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
-    db.query("SELECT COUNT(*)::int AS n FROM wallet_transactions WHERE user_id=$1",[uid]),
-    db.query("SELECT COALESCE(SUM(CASE WHEN action='remove' THEN -ABS(amount) ELSE ABS(amount) END),0)::numeric AS net FROM admin_manual_wallet_actions WHERE marketer_id=$1",[uid])
-  ]);
-  return wallet.rows.length && (Number(wallet.rows[0].balance||0)!==0 || Number(tx.rows[0]?.n||0)>0)
-    ? Number(wallet.rows[0].balance||0) : Number(admin.rows[0]?.net||0);
+  if(!foundWallet){
+    const [wallet,tx,admin] = await Promise.all([
+      db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
+      db.query("SELECT COUNT(*)::int AS n FROM wallet_transactions WHERE user_id=$1",[uid]),
+      db.query("SELECT COALESCE(SUM(CASE WHEN action='remove' THEN -ABS(amount) ELSE ABS(amount) END),0)::numeric AS net FROM admin_manual_wallet_actions WHERE marketer_id=$1",[uid])
+    ]);
+    storedBalance = wallet.rows.length && (Number(wallet.rows[0].balance||0)!==0 || Number(tx.rows[0]?.n||0)>0)
+      ? Number(wallet.rows[0].balance||0) : Number(admin.rows[0]?.net||0);
+  }
+  // Paid weekly checks already live in wallets.balance; settlement totals must not be added again.
+  return storedBalance;
 }
 async function checkState(uid) {
   const r=await db.query("SELECT settled_at,check_amount FROM network_bv_settlements WHERE member_id=$1 AND check_amount>0 ORDER BY settled_at DESC LIMIT 1",[uid]);
@@ -66,7 +72,7 @@ export default async function handler(req,res) {
       requestsFor(uid)
     ]);
     const reserved=requests.filter(x=>isPendingStatus(x.status)).reduce((sum,x)=>sum+Number(x.amount||0),0);
-    return res.json({ok:true,account:{name:fullName(p),phone:p.phone||""},balance,available_balance:Math.max(0,balance-reserved),latest_check_at:check.latest,check_eligible:check.eligible,requests:requests.map(x=>({...x,amount:Number(x.amount||0)}))});
+    return res.json({ok:true,account:{name:fullName(p),phone:p.phone||""},balance:Math.max(0,balance-reserved),available_balance:Math.max(0,balance-reserved),latest_check_at:check.latest,check_eligible:check.eligible,requests:requests.map(x=>({...x,amount:Number(x.amount||0)}))});
   }
   if(req.method!=="POST") return res.status(405).json({ok:false,error:"method_not_allowed"});
   let b; try{b=bodyOf(req)}catch{return res.status(400).json({ok:false,error:"invalid_json"});}
