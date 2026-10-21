@@ -61,6 +61,7 @@ async function sendBvOrderInvoice(orderId, marketerId) {
     }).join("");
     const html = "<div dir='rtl' style='font-family:Arial,sans-serif;color:#182332;max-width:760px;margin:auto;line-height:1.8'>" +
       "<p>مرحبًا " + escapeHtml(order.marketer_name) + "،</p>" +
+      "<!-- stamp will appear below invoice total -->" +
       "<div style='border:1px solid #dbe2ea;border-radius:12px;padding:20px'>" +
       "<h2 style='margin:0 0 4px'>Together Network</h2><h3 style='margin:0 0 16px'>فاتورة طلب منتجات</h3>" +
       "<p><b>رقم الطلب:</b> " + escapeHtml(order.id) + "<br><b>التاريخ:</b> " + escapeHtml(date) +
@@ -74,7 +75,7 @@ async function sendBvOrderInvoice(orderId, marketerId) {
       "<table style='width:100%;border-collapse:collapse'><thead><tr style='background:#f1f5f9'>" +
       "<th style='padding:10px;border:1px solid #dbe2ea'>المنتج</th><th style='padding:10px;border:1px solid #dbe2ea'>الكمية</th>" +
       "<th style='padding:10px;border:1px solid #dbe2ea'>سعر الوحدة</th><th style='padding:10px;border:1px solid #dbe2ea'>الإجمالي</th></tr></thead><tbody>" +
-      rowsHtml + "</tbody></table><h3 style='text-align:left'>الإجمالي: " + money(order.total) + " ج.م</h3></div>" +
+      rowsHtml + "</tbody></table><h3 style='text-align:left;margin-bottom:12px'>الإجمالي: " + money(order.total) + " ج.م</h3><div style='display:grid;gap:3px;justify-items:center;width:300px;max-width:100%;box-sizing:border-box;margin:0 auto;padding:10px 18px;border:5px solid #062b70;border-radius:1px;background:#fff;color:#062b70;text-align:center;line-height:1.8;font-weight:950;page-break-inside:avoid'><strong style='display:block;font-size:17px'>شـركة توجيـذر</strong><span style='display:block;font-size:15px'>للتسـويق الالكتـرونى</span><span style='display:block;font-size:15px'>س/ت 250156 استثمار القاهره</span></div></div>" +
       "<p style='margin-top:22px'>" + escapeHtml(invoiceFooter) + "</p></div>";
     const textItems = items.map(item => "- " + item.name + " | الكمية: " + item.quantity + " | سعر الوحدة: " + money(item.unit_price) + " ج.م | المقاس: " + (item.selected_size||"—") + " | اللون: " + (item.selected_color||"—") + " | BV: " + item.bv).join("\\n");
     const textBody = "مرحبًا " + order.marketer_name + "،\\n\\nفاتورة طلب منتجات Together Network\\nرقم الطلب: " + order.id +
