@@ -65,10 +65,10 @@ export default async function(req,res){
   const walletHash=await digest(b.wallet_password);
   const ins=await db.query(
     `INSERT INTO network_agent_applications
-    (owner_marketer_id,account_position,slot_no,first_name,second_name,third_name,fourth_name,national_id,phone,email,country,state,city,heir_name,heir_mother_name,referral_id,password_hash,wallet_password_hash,terms_accepted,national_id_front_key,national_id_back_key,voice_recording_key,paper_contract_key,declaration_image_key)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24)
+    (owner_marketer_id,account_position,slot_no,first_name,second_name,third_name,fourth_name,national_id,phone,email,country,state,city,heir_name,heir_mother_name,referral_id,password_hash,wallet_password_hash,terms_accepted,registration_mode,national_id_front_key,national_id_back_key,voice_recording_key,paper_contract_key,declaration_image_key)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
     RETURNING id`,
-    [placementOwner,pos,slot,b.first_name,b.second_name,b.third_name||null,b.fourth_name||null,b.national_id,b.phone,b.email,b.country,b.state||null,b.city||null,b.heir_name||null,b.heir_mother_name||null,finalReferralId,passwordHash,walletHash,true,b.national_id_front_key,b.national_id_back_key,b.voice_recording_key||null,b.paper_contract_key||null,b.declaration_image_key]
+    [placementOwner,pos,slot,b.first_name,b.second_name,b.third_name||null,b.fourth_name||null,b.national_id,b.phone,b.email,b.country,b.state||null,b.city||null,b.heir_name||null,b.heir_mother_name||null,finalReferralId,passwordHash,walletHash,true,registrationMode,b.national_id_front_key,b.national_id_back_key,b.voice_recording_key||null,b.paper_contract_key||null,b.declaration_image_key]
   );
   return res.json({ok:true,application_id:ins.rows[0].id});
 }
