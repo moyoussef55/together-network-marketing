@@ -52,6 +52,13 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
+      - name: Show the loaded public-key fingerprint only
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Loaded SSH public-key fingerprint(s) (no private key is printed):"
+          ssh-add -l -E sha256
+
       - name: Transfer only the report page to a temporary file
         shell: bash
         env:
@@ -68,7 +75,6 @@ jobs:
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            -o IdentitiesOnly=yes \
             -o ConnectTimeout=15 \
             "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" \
             "umask 077; cat > '$REMOTE_TMP'" < "$PAGE"
@@ -87,7 +93,6 @@ jobs:
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
-            -o IdentitiesOnly=yes \
             -o ConnectTimeout=15 \
             "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" \
             "bash -s -- '$DEPLOY_RUN_ID'" <<'REMOTE'
