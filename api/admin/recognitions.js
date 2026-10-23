@@ -108,6 +108,12 @@ export default async function(req,res){
    if(!r.rows.length)return res.status(404).json({ok:false,error:"marketer_not_found"});
    return res.json({ok:true,marketer_id:id,status:"blocked",login_blocked:true});
   }
+  if(action==="unblock_marketer"){
+   const id=String(b.marketer_id||"");if(!id)return res.status(400).json({ok:false,error:"marketer_required"});
+   const r=await db.query("UPDATE app_profiles SET status=CASE WHEN lower(COALESCE(status,''))='blocked' THEN 'active' ELSE status END,login_blocked=false WHERE id=$1 AND role='marketer' AND deleted_at IS NULL RETURNING id,status,login_blocked",[id]);
+   if(!r.rows.length)return res.status(404).json({ok:false,error:"marketer_not_found"});
+   return res.json({ok:true,marketer_id:id,status:r.rows[0].status,login_blocked:false});
+  }
   if(action==="control_marketer"){
    const id=String(b.marketer_id||"");if(!id)return res.status(400).json({ok:false,error:"marketer_required"});
    const exists=await db.query("SELECT id FROM app_profiles WHERE id=$1 AND role='marketer' AND deleted_at IS NULL",[id]);if(!exists.rows.length)return res.status(404).json({ok:false,error:"marketer_not_found"});
