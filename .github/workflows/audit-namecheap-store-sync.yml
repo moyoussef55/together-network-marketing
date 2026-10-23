@@ -1,24 +1,29 @@
-name: Audit Namecheap store sync targets
+name: Audit Namecheap source sync (read only)
+
 on:
   push:
     branches:
       - namecheap-runtime-prep
     paths:
       - ".github/workflows/audit-namecheap-store-sync.yml"
+
 permissions:
   contents: read
+
 concurrency:
   group: audit-namecheap-store-sync
   cancel-in-progress: false
+
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 8
     steps:
       - name: Check out audit branch
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Pin Namecheap host key
         shell: bash
         run: |
@@ -27,11 +32,13 @@ jobs:
           chmod 700 "$HOME/.ssh"
           printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
+
       - name: Load Namecheap SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
-      - name: Compare main branch with live Namecheap files (read only)
+
+      - name: Compare current GitHub source to Namecheap (read only)
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -40,18 +47,44 @@ jobs:
         run: |
           set -euo pipefail
           git fetch origin main
-          echo "=== GitHub main hashes ==="
-          for REL in "public/store/index.html" "public/store/product/index.html" "public/theme.css"; do
-            printf '%s ' "$REL"
-            git show "origin/main:$REL" | sha256sum
-          done
-          echo "=== Live Namecheap hashes ==="
-          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" 'bash -s' <<'REMOTE'
-          set -euo pipefail
           ROOT="/home/togeiign/marketing-network"
-          for REL in "public/store/index.html" "public/store/product/index.html" "public/theme.css"; do
-            FILE="$ROOT/$REL"
-            printf '%s ' "$REL"
-            if [ -f "$FILE" ] && [ ! -L "$FILE" ]; then sha256sum "$FILE"; else echo MISSING_OR_SYMLINK; fi
+          FILES=(
+            "public/store/index.html"
+            "public/store/product/index.html"
+            "public/theme.css"
+            "public/alternate-theme.css"
+            "public/theme-toggle.js"
+            "public/marketer-sidebar.js"
+            "public/marketer-push.js"
+            "public/together-logo.svg"
+            "public/marketer/register-agent/index.html"
+            "public/marketer/wallet/index.html"
+            "public/marketer/withdraw/index.html"
+            "public/admin/withdrawals/index.html"
+            "public/admin/products/index.html"
+            "public/admin/marketers/index.html"
+            "public/login.html"
+          )
+          mkdir -p /tmp/together-source-audit
+          for REL in "${FILES[@]}"; do
+            SRC="/tmp/together-source-audit/source"
+            LIVE="/tmp/together-source-audit/live"
+            git show "origin/main:$REL" > "$SRC"
+            if ! ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "test -f '$ROOT/$REL' && test ! -L '$ROOT/$REL' && cat '$ROOT/$REL'" > "$LIVE"; then
+              echo "LIVE_FILE_MISSING_OR_UNREADABLE=$REL"
+              continue
+            fi
+            echo "=== HASH: $REL ==="
+            printf 'GITHUB_MAIN '
+            sha256sum "$SRC"
+            printf 'NAMECHEAP_LIVE '
+            sha256sum "$LIVE"
+            if cmp -s "$SRC" "$LIVE"; then
+              echo "MATCH=$REL"
+            else
+              echo "DIFFERENT=$REL"
+              echo "=== DIFF (first 240 lines; source first, live second) ==="
+              diff -u --label "GitHub main: $REL" --label "Namecheap live: $REL" "$SRC" "$LIVE" | head -n 240 || true
+              echo "=== END DIFF: $REL ==="
+            fi
           done
-          REMOTE
