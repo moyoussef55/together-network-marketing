@@ -1,5 +1,11 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>متجر Together — الإدارة</title><link rel="stylesheet" href="/theme.css"><style>
 .wrap{max-width:1100px;margin:0 auto}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid #ffffff18;text-align:right}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#ffffff12}.on{background:#173f2b;color:#8df0b4}.off{background:#4a1d22;color:#ff9da7}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:800px){.grid2{grid-template-columns:1fr}.table{font-size:13px;display:block;overflow:auto;white-space:nowrap}}.mini-form{display:flex;gap:8px}.mini-form input{flex:1}
+/* Light mode: improve visibility status contrast in the products table. */
+body[data-theme="light"] .table th{background:#eee3d5!important;color:#33251c!important}
+body[data-theme="light"] .table td{border-bottom-color:#e2d5c5!important;color:#33251c}
+body[data-theme="light"] .pill{font-weight:800}
+body[data-theme="light"] .pill.on{background:#d7f5e4!important;color:#126338!important;border:1px solid #39a96b!important;box-shadow:inset 0 0 0 1px #b0e8c8}
+body[data-theme="light"] .pill.off{background:#ffe0e2!important;color:#922b35!important;border:1px solid #d65b65!important;box-shadow:inset 0 0 0 1px #f4b7bd}
 </style></head><body><main class="shell wrap"><header class="topbar"><div><div class="muted">إدارة Together</div><h1>المتجر</h1><p class="muted">إدارة الأقسام والمنتجات والمخزون وحالة ظهور المنتجات للمسوقين.</p></div><div class="actions"><a class="btn" href="/admin/">لوحة الإدارة</a><a class="btn primary" href="/admin/products/">طلبات المنتجات</a><a class="btn" href="/admin/store/add-product/">إضافة منتج</a></div></header>
 <section class="grid2"><section class="card"><h2>إضافة قسم</h2><form id="catForm" class="mini-form"><input id="catName" required placeholder="اسم القسم"><button class="btn primary">إضافة</button></form><div id="cats" style="margin-top:14px"></div></section><section class="card"><h2>إحصائيات المتجر</h2><div id="stats" class="muted">جاري التحميل…</div></section></section>
 <section class="card" style="margin-top:18px"><div class="topbar"><h2>المنتجات</h2><span id="msg" class="muted"></span></div><div style="overflow:auto"><table class="table"><thead><tr><th>المنتج</th><th>الصورة</th><th>القسم</th><th>السعر</th><th>المخزون</th><th>BV</th><th>الظهور</th><th>الإجراء</th></tr></thead><tbody id="products"></tbody></table></div></section>
@@ -16,4 +22,4 @@ async function toggleProduct(id){try{await post({action:'toggle_product',product
 async function deleteProduct(id){if(!confirm('هل أنت متأكد من حذف المنتج؟ سيتم حذف صوره أيضًا ولا يمكن التراجع عن ذلك.'))return;try{await post({action:'delete_product',product_id:id});await load()}catch(e){alert(e.message)}}
 async function toggleCat(id){try{await post({action:'toggle_category',category_id:id});await load()}catch(e){alert(e.message)}}
 load();
-</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=452"></script></body></html>
+</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=600"></script></body></html>
