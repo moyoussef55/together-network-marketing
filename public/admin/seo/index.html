@@ -57,4 +57,4 @@ $("generate").onclick=async()=>{const b=$("generate");b.disabled=true;$("aiStatu
 $("clearAi").onclick=()=>{$("topic").value="";$("focusPhrase").value="";$("content").value="";$("aiStatus").textContent="تم مسح مدخلات التوليد.";$("tips").innerHTML=""};
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 for(const id of ids)$(id).addEventListener("input",updateAudit);load();
-</script></body></html>
+</script><script src="/theme-toggle.js?v=600"></script></body></html>
