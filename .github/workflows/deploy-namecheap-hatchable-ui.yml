@@ -47,6 +47,7 @@ jobs:
             "public/alternate-theme.css"
             "public/together-logo.svg"
             "public/store/index.html"
+            "public/store/product/index.html"
             "public/login.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
@@ -87,6 +88,13 @@ jobs:
           grep -Fq '/api/admin/store' public/admin/store/add-product/index.html
           grep -Fq 'id="purchaseInvoiceResult"' public/store/index.html
           grep -Fq '/api/store/order' public/store/index.html
+          grep -Fq 'id="purchaseInvoiceResult"' public/store/index.html
+          grep -Fq 'id="historicOrderInvoice"' public/store/index.html
+          grep -Fq 'tnInvoiceMarketerName' public/store/product/index.html
+          grep -Fq 'tnInvoiceMarketerCode' public/store/product/index.html
+          grep -Fq 'tnProductGalleryContrastFix' public/store/product/index.html
+          grep -Fq 'tnProductLightModeFix' public/store/product/index.html
+          grep -Fq 'theme-toggle.js?v=600' public/store/product/index.html
           grep -Fq 'theme-toggle.js' public/login.html
           grep -Fq '/api/admin/withdrawals' public/admin/withdrawals/index.html
           grep -Fq '/api/marketer/wallet' public/marketer/wallet/index.html
@@ -141,6 +149,7 @@ jobs:
             "public/alternate-theme.css"
             "public/together-logo.svg"
             "public/store/index.html"
+            "public/store/product/index.html"
             "public/login.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
@@ -204,6 +213,7 @@ jobs:
             "public/alternate-theme.css"
             "public/together-logo.svg"
             "public/store/index.html"
+            "public/store/product/index.html"
             "public/login.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
