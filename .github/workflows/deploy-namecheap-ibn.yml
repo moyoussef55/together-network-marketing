@@ -1,0 +1,115 @@
+name: Deploy IBN history details to Namecheap
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "api/admin/ibn.js"
+      - "public/admin/ibn/index.html"
+      - ".github/workflows/deploy-namecheap-ibn.yml"
+permissions:
+  contents: read
+concurrency:
+  group: namecheap-admin-ibn-history
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+      - name: Validate IBN history page and API
+        shell: bash
+        run: |
+          set -euo pipefail
+          API="api/admin/ibn.js"
+          UI="public/admin/ibn/index.html"
+          test -s "$API" && test -s "$UI"
+          grep -Fq 'registered.display_name AS registered_marketer_name' "$API"
+          grep -Fq 'registered.referral_code AS registered_marketer_code' "$API"
+          grep -Fq 'upline.display_name AS upline_marketer_name' "$API"
+          grep -Fq 'upline.referral_code AS upline_marketer_code' "$API"
+          grep -Fq 'LEFT JOIN app_profiles registered' "$API"
+          grep -Fq 'LEFT JOIN app_profiles upline' "$API"
+          grep -Fq 'registered_marketer_name' "$UI"
+          grep -Fq 'upline_marketer_code' "$UI"
+          grep -Fq 'timeZone:"Africa/Cairo"' "$UI"
+          grep -Fq 'second:"2-digit"' "$UI"
+          sha256sum "$API" "$UI"
+      - name: Pin verified Namecheap host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+      - name: Transfer only IBN API and history page
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '/home/togeiign/.admin-ibn-api.deploy-$RUN_ID'" < "api/admin/ibn.js"
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '/home/togeiign/.admin-ibn-index.html.deploy-$RUN_ID'" < "public/admin/ibn/index.html"
+      - name: Back up, atomically install and verify only these files
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          API="$ROOT/api/admin/ibn.js"
+          UI="$ROOT/public/admin/ibn/index.html"
+          AS="/home/togeiign/.admin-ibn-api.deploy-$RUN_ID"
+          US="/home/togeiign/.admin-ibn-index.html.deploy-$RUN_ID"
+          AI="$ROOT/api/admin/.ibn.js.incoming-$RUN_ID"
+          UI_IN="$ROOT/public/admin/ibn/.index.html.incoming-$RUN_ID"
+          test -d "$ROOT/api/admin" && test -d "$ROOT/public/admin/ibn"
+          test -f "$API" && test ! -L "$API"
+          test -f "$UI" && test ! -L "$UI"
+          test -s "$AS" && test -s "$US"
+          grep -Fq 'registered.display_name AS registered_marketer_name' "$AS"
+          grep -Fq 'upline.referral_code AS upline_marketer_code' "$AS"
+          grep -Fq 'timeZone:"Africa/Cairo"' "$US"
+          cp "$AS" "$AI"
+          cp "$US" "$UI_IN"
+          chmod --reference="$API" "$AI"
+          chmod --reference="$UI" "$UI_IN"
+          cmp -s "$AS" "$AI" && cmp -s "$US" "$UI_IN"
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+          BA="$API.BACKUP-before-ibn-history-$STAMP"
+          BU="$UI.BACKUP-before-ibn-history-$STAMP"
+          cp -p "$API" "$BA"
+          cp -p "$UI" "$BU"
+          restore_previous() { cp -p "$BA" "$API"; cp -p "$BU" "$UI"; rm -f "$AI" "$UI_IN"; }
+          if ! mv -f "$AI" "$API"; then restore_previous; exit 1; fi
+          if ! mv -f "$UI_IN" "$UI"; then restore_previous; exit 1; fi
+          if ! cmp -s "$AS" "$API" || ! cmp -s "$US" "$UI"; then
+            restore_previous
+            echo "VERIFY_FAILED; previous files restored" >&2
+            exit 1
+          fi
+          echo "=== Installed SHA-256 ==="
+          sha256sum "$API" "$UI"
+          echo "BACKUP_API=$BA"
+          echo "BACKUP_UI=$BU"
+          echo "NAMECHEAP_ADMIN_IBN_HISTORY_DEPLOY_OK"
+          rm -f "$AS" "$US" "$AI" "$UI_IN"
+          REMOTE
