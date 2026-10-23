@@ -42,6 +42,11 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/admin/marketers/index.html"
+            "public/admin/marketers/detail.html"
+            "public/admin/marketers/network.html"
+            "public/admin/store/index.html"
+            "public/admin/store/add-product/index.html"
           )
           for FILE in "${FILES[@]}"; do
             test -s "$FILE"
@@ -64,6 +69,11 @@ jobs:
           grep -Fq '/api/marketer/messages' public/marketer/messages/index.html
           grep -Fq '/api/profile' public/marketer/profile/index.html
           grep -Fq '/api/marketer-settings' public/marketer/settings/index.html
+          grep -Fq '/api/admin/marketers' public/admin/marketers/index.html
+          grep -Fq '/api/admin/marketer-detail' public/admin/marketers/detail.html
+          grep -Fq '/api/admin/marketer-network' public/admin/marketers/network.html
+          grep -Fq '/api/admin/store' public/admin/store/index.html
+          grep -Fq '/api/admin/store' public/admin/store/add-product/index.html
 
       - name: Pin the verified Namecheap host key
         shell: bash
@@ -105,6 +115,11 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/admin/marketers/index.html"
+            "public/admin/marketers/detail.html"
+            "public/admin/marketers/network.html"
+            "public/admin/store/index.html"
+            "public/admin/store/add-product/index.html"
           )
           REMOTE_STAGE="/home/togeiign/.hatchable-ui-stage-$RUN_ID"
           tar -czf - "${FILES[@]}" | ssh \
@@ -154,6 +169,11 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/admin/marketers/index.html"
+            "public/admin/marketers/detail.html"
+            "public/admin/marketers/network.html"
+            "public/admin/store/index.html"
+            "public/admin/store/add-product/index.html"
           )
           rollback() {
             echo "BATCH_FAILURE: restoring previous versions" >&2
