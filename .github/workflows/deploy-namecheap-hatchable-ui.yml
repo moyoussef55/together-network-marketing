@@ -42,6 +42,15 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-sidebar.js"
+            "public/theme-toggle.js"
+            "public/alternate-theme.css"
+            "public/together-logo.svg"
+            "public/store/index.html"
+            "public/login.html"
+            "public/admin/withdrawals/index.html"
+            "public/marketer/wallet/index.html"
+            "public/marketer/withdraw/index.html"
             "public/admin/marketers/index.html"
             "public/admin/marketers/detail.html"
             "public/admin/marketers/network.html"
@@ -53,6 +62,8 @@ jobs:
             case "$FILE" in
               *.html) grep -qi '<html' "$FILE" ;;
               *.css) grep -q '[:{}]' "$FILE" ;;
+              *.js) grep -Eq 'function|=>|\(\(' "$FILE" ;;
+              *.svg) grep -Fq '<svg' "$FILE" ;;
             esac
             printf 'SOURCE_OK %s ' "$FILE"
             sha256sum "$FILE"
@@ -74,6 +85,16 @@ jobs:
           grep -Fq '/api/admin/marketer-network' public/admin/marketers/network.html
           grep -Fq '/api/admin/store' public/admin/store/index.html
           grep -Fq '/api/admin/store' public/admin/store/add-product/index.html
+          grep -Fq 'id="purchaseInvoiceResult"' public/store/index.html
+          grep -Fq '/api/store/order' public/store/index.html
+          grep -Fq 'theme-toggle.js' public/login.html
+          grep -Fq '/api/admin/withdrawals' public/admin/withdrawals/index.html
+          grep -Fq '/api/marketer/wallet' public/marketer/wallet/index.html
+          grep -Fq '/api/marketer/withdrawals' public/marketer/withdraw/index.html
+          grep -Fq 'window.__tnSharedMarketerMenu' public/marketer-sidebar.js
+          grep -Fq '__togetherThemeToggleInstalled' public/theme-toggle.js
+          grep -Fq 'Together Network alternate off-white theme' public/alternate-theme.css
+          grep -Fq '<svg' public/together-logo.svg
 
       - name: Pin the verified Namecheap host key
         shell: bash
@@ -115,6 +136,15 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-sidebar.js"
+            "public/theme-toggle.js"
+            "public/alternate-theme.css"
+            "public/together-logo.svg"
+            "public/store/index.html"
+            "public/login.html"
+            "public/admin/withdrawals/index.html"
+            "public/marketer/wallet/index.html"
+            "public/marketer/withdraw/index.html"
             "public/admin/marketers/index.html"
             "public/admin/marketers/detail.html"
             "public/admin/marketers/network.html"
@@ -169,6 +199,15 @@ jobs:
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-sidebar.js"
+            "public/theme-toggle.js"
+            "public/alternate-theme.css"
+            "public/together-logo.svg"
+            "public/store/index.html"
+            "public/login.html"
+            "public/admin/withdrawals/index.html"
+            "public/marketer/wallet/index.html"
+            "public/marketer/withdraw/index.html"
             "public/admin/marketers/index.html"
             "public/admin/marketers/detail.html"
             "public/admin/marketers/network.html"
