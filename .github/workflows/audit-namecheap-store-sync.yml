@@ -15,8 +15,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Check out repository
+      - name: Check out audit branch
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Pin Namecheap host key
         shell: bash
         run: |
@@ -29,7 +31,7 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
-      - name: Read-only audit of the three live targets
+      - name: Compare main branch with live Namecheap files (read only)
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -37,18 +39,19 @@ jobs:
           USER: ${{ secrets.NAMECHEAP_SSH_USER }}
         run: |
           set -euo pipefail
+          git fetch origin main
+          echo "=== GitHub main hashes ==="
+          for REL in "public/store/index.html" "public/store/product/index.html" "public/theme.css"; do
+            printf '%s ' "$REL"
+            git show "origin/main:$REL" | sha256sum
+          done
+          echo "=== Live Namecheap hashes ==="
           ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" 'bash -s' <<'REMOTE'
           set -euo pipefail
           ROOT="/home/togeiign/marketing-network"
           for REL in "public/store/index.html" "public/store/product/index.html" "public/theme.css"; do
             FILE="$ROOT/$REL"
-            echo "=== $REL ==="
-            if [ -f "$FILE" ] && [ ! -L "$FILE" ]; then
-              stat -c 'size=%s mode=%a modified=%y' "$FILE"
-              sha256sum "$FILE"
-            else
-              echo "MISSING_OR_SYMLINK"
-            fi
+            printf '%s ' "$REL"
+            if [ -f "$FILE" ] && [ ! -L "$FILE" ]; then sha256sum "$FILE"; else echo MISSING_OR_SYMLINK; fi
           done
-          echo "READ_ONLY_AUDIT_OK"
           REMOTE
