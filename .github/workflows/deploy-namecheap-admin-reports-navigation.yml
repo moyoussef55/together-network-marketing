@@ -1,0 +1,120 @@
+name: Deploy admin reports navigation and page to Namecheap
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "public/admin/index.html"
+      - "public/admin/reports/index.html"
+      - ".github/workflows/deploy-namecheap-admin-reports-navigation.yml"
+permissions:
+  contents: read
+concurrency:
+  group: namecheap-admin-reports-navigation
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 7
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v4
+      - name: Validate restored navigation and complete reports page
+        shell: bash
+        run: |
+          set -euo pipefail
+          A="public/admin/index.html"
+          R="public/admin/reports/index.html"
+          test -s "$A" && test -s "$R"
+          grep -Fq '<div class="side-group">التقارير</div><a href="/admin/reports/">📊 التقارير</a>' "$A"
+          grep -Fq '<title>التقارير | Together Network</title>' "$R"
+          grep -Fq '/api/admin/reports' "$R"
+          grep -Fq 'id="reportRows"' "$R"
+          grep -Fq 'id="reportPager"' "$R"
+          grep -Fq 'id="reportPdfAll"' "$R"
+          grep -Fq 'id="reportShareAll"' "$R"
+          sha256sum "$A" "$R"
+      - name: Pin verified Namecheap host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+      - name: Transfer only the admin navigation and reports page
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '/home/togeiign/.admin-index.html.deploy-$RUN_ID'" < "public/admin/index.html"
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '/home/togeiign/.admin-reports-index.html.deploy-$RUN_ID'" < "public/admin/reports/index.html"
+      - name: Back up, atomically install and verify both files
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          A="$ROOT/public/admin/index.html"
+          R="$ROOT/public/admin/reports/index.html"
+          AS="/home/togeiign/.admin-index.html.deploy-$RUN_ID"
+          RS="/home/togeiign/.admin-reports-index.html.deploy-$RUN_ID"
+          AI="$ROOT/public/admin/.index.html.incoming-$RUN_ID"
+          RI="$ROOT/public/admin/reports/.index.html.incoming-$RUN_ID"
+          test -d "$ROOT" && test -d "$ROOT/public/admin"
+          test -f "$A" && test ! -L "$A"
+          test -s "$AS" && test -s "$RS"
+          grep -Fq '<div class="side-group">التقارير</div><a href="/admin/reports/">📊 التقارير</a>' "$AS"
+          grep -Fq '<title>التقارير | Together Network</title>' "$RS"
+          grep -Fq '/api/admin/reports' "$RS"
+          grep -Fq 'id="reportRows"' "$RS"
+          mkdir -p "$ROOT/public/admin/reports"
+          test -d "$ROOT/public/admin/reports" && test ! -L "$ROOT/public/admin/reports"
+          RP=0
+          if [ -e "$R" ]; then test -f "$R" && test ! -L "$R"; RP=1; fi
+          cp "$AS" "$AI"
+          cp "$RS" "$RI"
+          chmod --reference="$A" "$AI"
+          if [ "$RP" -eq 1 ]; then chmod --reference="$R" "$RI"; else chmod 644 "$RI"; fi
+          cmp -s "$AS" "$AI" && cmp -s "$RS" "$RI"
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+          BA="$A.BACKUP-before-reports-restore-$STAMP"
+          BR=""
+          cp -p "$A" "$BA"
+          if [ "$RP" -eq 1 ]; then BR="$R.BACKUP-before-reports-restore-$STAMP"; cp -p "$R" "$BR"; fi
+          restore_previous() {
+            cp -p "$BA" "$A"
+            if [ "$RP" -eq 1 ]; then cp -p "$BR" "$R"; else rm -f "$R"; fi
+            rm -f "$AI" "$RI"
+          }
+          if ! mv -f "$AI" "$A"; then restore_previous; exit 1; fi
+          if ! mv -f "$RI" "$R"; then restore_previous; exit 1; fi
+          if ! cmp -s "$AS" "$A" || ! cmp -s "$RS" "$R"; then
+            restore_previous
+            echo "VERIFY_FAILED; previous files restored" >&2
+            exit 1
+          fi
+          echo "=== Installed SHA-256 ==="
+          sha256sum "$A" "$R"
+          echo "BACKUP_ADMIN=$BA"
+          if [ "$RP" -eq 1 ]; then echo "BACKUP_REPORTS=$BR"; else echo "REPORTS_FILE_PREVIOUSLY_ABSENT=1"; fi
+          echo "NAMECHEAP_ADMIN_REPORTS_NAVIGATION_DEPLOY_OK"
+          rm -f "$AS" "$RS" "$AI" "$RI"
+          REMOTE
