@@ -11,6 +11,29 @@
 .unhide-btn{background:#164b78!important;color:#e0f2fe!important;border:1px solid #277fb9!important}
 .restricted-empty{padding:18px;border-radius:12px;border:1px dashed #ffffff22;color:#a9b9cb}
 @media(max-width:600px){.restricted-row{align-items:flex-start}.restricted-person{flex-basis:100%}.restricted-actions{width:100%}.restricted-actions .btn{flex:1}}
+body[data-theme="light"]{color:#352719!important;background:#f5eee4!important;color-scheme:light}
+body[data-theme="light"] .recognition-admin{color:#352719!important}
+body[data-theme="light"] .hero,body[data-theme="light"] .panel,body[data-theme="light"] .post{background:#fffaf3!important;color:#352719!important;border:1px solid #dfcdb8!important;box-shadow:0 5px 18px #6f452b12}
+body[data-theme="light"] .hero{background:linear-gradient(125deg,#f7eee2,#fffaf3 65%,#ead8c2)!important}
+body[data-theme="light"] h1,body[data-theme="light"] h2,body[data-theme="light"] h3,body[data-theme="light"] .post-body,body[data-theme="light"] .desc,body[data-theme="light"] .field label,body[data-theme="light"] .member strong,body[data-theme="light"] .restricted-person strong{color:#432b1b!important;-webkit-text-fill-color:#432b1b!important}
+body[data-theme="light"] .muted,body[data-theme="light"] .small,body[data-theme="light"] .restricted-empty{color:#765f4c!important;-webkit-text-fill-color:#765f4c!important}
+body[data-theme="light"] .field input,body[data-theme="light"] .field textarea,body[data-theme="light"] .field select,body[data-theme="light"] #memberSearch{background:#fff!important;color:#352719!important;-webkit-text-fill-color:#352719!important;border:1px solid #cbb69f!important}
+body[data-theme="light"] input::placeholder,body[data-theme="light"] textarea::placeholder{color:#8b7967!important;-webkit-text-fill-color:#8b7967!important;opacity:1}
+body[data-theme="light"] .btn{background:#ead9c5!important;color:#432b1b!important;-webkit-text-fill-color:#432b1b!important;border:1px solid #cbb397!important;border-radius:9px}
+body[data-theme="light"] .btn.primary{background:#6f452b!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#56351f!important}
+body[data-theme="light"] .btn.danger{background:#a52e3b!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#84212c!important}
+body[data-theme="light"] .restore-btn{background:#176746!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#125237!important}
+body[data-theme="light"] .unhide-btn{background:#175781!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#124568!important}
+body[data-theme="light"] .status{background:#f0e2d1!important;color:#432b1b!important;border:1px solid #d9c1a7!important}
+body[data-theme="light"] .pill{background:#ead9c5!important;color:#432b1b!important;border:1px solid #d5bea4!important}
+body[data-theme="light"] .comment{background:#f2e6d8!important;color:#352719!important;border:1px solid #dfcbb5!important}
+body[data-theme="light"] .restricted-tag{border-color:#d6c2ad!important}
+body[data-theme="light"] .restricted-tag.blocked{background:#fbe3e5!important;color:#84212c!important;border-color:#e9aeb5!important}
+body[data-theme="light"] .restricted-tag.hidden-recognition{background:#fff0cc!important;color:#76500c!important;border-color:#e5cb86!important}
+body[data-theme="light"] .member{border-bottom-color:#dfcdb8!important}
+body[data-theme="light"] .member input{accent-color:#6f452b}
+body[data-theme="light"] .post img,body[data-theme="light"] .post video{background:#eadfD2!important}
+body[data-theme="light"] .btn:disabled{opacity:.55!important}
 </style></head><body class="app-shell"><main class="main-content recognition-admin"><header class="hero"><p class="muted">TOGETHER • COMMUNITY MANAGEMENT</p><h1>🏆 إدارة التكريمات</h1><p class="muted">انشر إنجازات الفريق، وتابع التفاعلات والتعليقات، وتحكم في صلاحيات كل مسوق.</p><div class="row"><a class="btn" href="/admin/">العودة للوحة الإدارة</a><a class="btn" href="/marketer/recognitions/?admin_preview=1">معاينة قسم المسوقين (للإدارة)</a></div></header><div id="status" class="status">جارٍ تحميل بيانات التكريمات…</div>
 <section class="panel"><h2 id="formTitle">إنشاء منشور تكريم جديد</h2><p class="muted">يمكنك نشر نص فقط أو إرفاق صورة أو فيديو. الحد الأقصى للمرفق 15 ميجابايت.</p><div class="field"><label for="description">وصف التكريم / نص المنشور</label><textarea id="description" maxlength="5000" placeholder="اكتب نص التكريم. للإشارة اكتب @ ثم كود المسوق أو اسمه، أو اختره من القائمة أدناه..."></textarea></div><div class="field"><label for="mentionTarget">إشارة لمسوق (اختياري)</label><div class="row"><select id="mentionTarget" style="flex:1;min-width:0"><option value="">اختر المسوق بالاسم أو الكود</option></select><button type="button" class="btn" id="insertMention">إدراج الإشارة</button></div><p class="muted small">سيصل للمسوق المذكور إشعار خاص بالإضافة إلى إشعار التكريم.</p></div><div class="field"><label for="media">صورة أو فيديو</label><input id="media" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"><div id="preview"></div></div><div class="row"><button class="btn primary" id="save">نشر التكريم</button><button class="btn" id="cancelEdit" hidden>إلغاء التعديل</button></div></section>
 <section class="panel"><h2>منشورات التكريمات</h2><div id="posts" class="post-grid"></div></section>
@@ -60,4 +83,4 @@ $("#comments").onclick=async e=>{const b=e.target.closest("[data-del-comment]");
 $("#memberSearch").oninput=()=>{memberPage=1;renderMembers()};
 $("#members").onchange=async e=>{const c=e.target.closest("[data-control]");if(!c)return;try{await api("control_marketer",{marketer_id:c.dataset.id,field:c.dataset.control,value:c.checked});const m=state.marketers.find(x=>x.id===c.dataset.id);if(m)m[c.dataset.control]=c.checked;renderRestrictedMembers();say("تم تحديث صلاحيات المسوق.")}catch(e){c.checked=!c.checked;say(e.message)}};
 $("#restrictedMembers").onclick=async e=>{const unblock=e.target.closest("[data-unblock-marketer]"),unhide=e.target.closest("[data-show-recognitions]");if(!unblock&&!unhide)return;const marketerId=unblock?unblock.dataset.unblockMarketer:unhide.dataset.showRecognitions;try{if(unblock){if(!confirm("سيتم إلغاء حظر تسجيل الدخول لهذا المسوق، مع الإبقاء على أي قيود أخرى غير مرتبطة بالحظر. هل تريد المتابعة؟"))return;await api("unblock_marketer",{marketer_id:marketerId})}else{if(!confirm("سيظهر قسم التكريمات مجددًا لهذا المسوق. هل تريد المتابعة؟"))return;await api("control_marketer",{marketer_id:marketerId,field:"posts_hidden",value:false})}await load();say(unblock?"تم إلغاء حظر المستخدم بنجاح.":"تم إظهار التكريمات للمستخدم بنجاح.")}catch(err){say(err.message)}};load().catch(e=>say(e.message));setInterval(refreshActivity,15000);
-</script><script src="/theme-toggle.js?v=452"></script></body></html>
+</script><script src="/theme-toggle.js?v=600"></script></body></html>
