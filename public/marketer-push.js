@@ -11,7 +11,7 @@ function unsupportedMessage(){
  if(isIOS()&&!isStandalone())return "على iPhone وiPad لا تعمل إشعارات الويب من تبويب عادي؛ هذا قيد من iOS/iPadOS. لا تحتاج إلى Safari: من Chrome اضغط مشاركة ثم «إضافة إلى الشاشة الرئيسية»، وبعدها افتح توجيذر من الأيقونة الجديدة وفعّل الإشعارات. يلزم iOS/iPadOS 16.4 أو أحدث.";
  if(!("Notification" in window)||!("serviceWorker" in navigator)||!("PushManager" in window)){
   const ua=String(navigator.userAgent||"");
-  if(/FBAN|FBAV|Instagram|WhatsApp|Telegram|Line\\/|;\\s?wv\\)|WebView/i.test(ua))return "يبدو أنك فتحت توجيذر من داخل تطبيق آخر. افتح قائمة المتصفح واختر «فتح في Chrome» أو افتح الرابط مباشرة في Chrome المحدث، ثم فعّل الإشعارات.";
+  if(/FBAN|FBAV|Instagram|WhatsApp|Telegram|Line\/|;\s?wv\)|WebView/i.test(ua))return "يبدو أنك فتحت توجيذر من داخل تطبيق آخر. افتح قائمة المتصفح واختر «فتح في Chrome» أو افتح الرابط مباشرة في Chrome المحدث، ثم فعّل الإشعارات.";
   if(isIOS())return "على iPhone/iPad لا تعمل إشعارات الويب من تبويب عادي. من Chrome نفسه اضغط مشاركة ثم «إضافة إلى الشاشة الرئيسية»، وبعدها افتح توجيذر من الأيقونة. يلزم iOS/iPadOS 16.4 أو أحدث.";
   return "هذا المتصفح لا يوفّر واجهات إشعارات الويب اللازمة. افتح الموقع مباشرةً في Chrome محدث على Android (وليس داخل Facebook أو WhatsApp أو تطبيق آخر)، وتأكد من السماح بالإشعارات للموقع.";
  }
@@ -92,16 +92,26 @@ async function requestPermission(){
 }
 async function showFirstVisitDialog(){
  if(!document.body||!location.pathname.startsWith("/marketer/dashboard"))return;
- const key="tn_push_prompt_seen_v4";
- try{if(localStorage.getItem(key))return}catch{}
- if("Notification" in window&&Notification.permission==="granted"){try{localStorage.setItem(key,"1")}catch{};loadSdk().then(async s=>{const result=await confirmPushSubscription(s);if(result.ok)status("تم تأكيد اشتراك الجهاز في OneSignal.");else status("تعذر إكمال اشتراك OneSignal تلقائيًا: "+result.reason)}).catch(e=>status("تعذر تأكيد تسجيل الجهاز في OneSignal: "+(e.message||"خطأ غير معروف")));return}
+ let promptUserId="unknown";try{const cr=await Promise.race([fetch(CONFIG_URL,{credentials:"include",cache:"no-store"}),new Promise((_,reject)=>setTimeout(()=>reject(new Error("push-config-timeout")),1400))]);const cd=await cr.json().catch(()=>({}));if(cr.ok&&cd.user_id)promptUserId=String(cd.user_id)}catch{}
+ const key="tn_push_prompt_seen_v5:"+promptUserId;
+ try{
+  const params=new URLSearchParams(location.search);
+  if(params.get("resetPushPrompt")==="1"){
+   localStorage.removeItem(key);
+   params.delete("resetPushPrompt");
+   const query=params.toString();
+   history.replaceState(null,"",location.pathname+(query?"?"+query:"")+location.hash);
+  }
+  if(localStorage.getItem(key))return;
+ }catch{}
+ if("Notification" in window&&Notification.permission==="granted"){loadSdk().then(async s=>{const result=await confirmPushSubscription(s);if(result.ok)status("تم تأكيد اشتراك الجهاز في OneSignal.");else status("تعذر إكمال اشتراك OneSignal تلقائيًا: "+result.reason)}).catch(e=>status("تعذر تأكيد تسجيل الجهاز في OneSignal: "+(e.message||"خطأ غير معروف")))}
  const unsupported=unsupportedMessage();
  // Render the prompt immediately after login; initialize OneSignal in parallel.
  // Do not hide the dialog just because the SDK/network is slow.
  if(!unsupported)loadSdk().catch(e=>status(e.message||"سيتم تجهيز خدمة الإشعارات عند الموافقة."));
  try{if(localStorage.getItem(key))return}catch{}
  const overlay=document.createElement("div");overlay.id="tnPushPermissionDialog";
- overlay.innerHTML='<div role="dialog" aria-modal="true" aria-labelledby="tnPushTitle" style="width:min(430px,calc(100vw - 36px));background:#fff;color:#142033;border-radius:18px;padding:25px;box-shadow:0 18px 70px #0005;text-align:center;font-family:Arial,sans-serif"><div style="font-size:42px;margin-bottom:8px">🔔</div><h2 id="tnPushTitle" style="margin:0 0 12px;font-size:22px">تفعيل إشعارات الهاتف</h2><p id="tnPushIntro" style="line-height:1.9;margin:0 0 20px;color:#475569">هل تسمح لتوجيذر بإرسال إشعارات مهمة إليك حتى عندما يكون الموقع مغلقًا؟ سيظهر هذا الطلب مرة واحدة على هذا المتصفح.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button id="tnPushAllow" type="button" style="border:0;border-radius:10px;background:#16a34a;color:#ffffff;padding:12px 22px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px #16a34a44">موافق، تفعيل الإشعارات</button><button id="tnPushLater" type="button" style="border:1px solid #cbd5e1;border-radius:10px;background:white;color:#334155;padding:12px 22px;cursor:pointer">ليس الآن</button></div><p id="tnPushDialogStatus" style="font-size:13px;color:#b42318;margin:12px 0 0" aria-live="polite"></p></div>';
+ overlay.innerHTML='<style>#tnPushPermissionDialog #tnPushTitle{color:#000!important}#tnPushPermissionDialog #tnPushIntro{color:#000!important}#tnPushPermissionDialog #tnPushAllow{background:#16a34a!important;background-color:#16a34a!important;color:#fff!important;border:0!important}#tnPushPermissionDialog #tnPushLater{background:#dc2626!important;background-color:#dc2626!important;color:#fff!important;border:0!important}</style><div role="dialog" aria-modal="true" aria-labelledby="tnPushTitle" style="width:min(430px,calc(100vw - 24px));max-height:calc(100vh - 24px);max-height:calc(100dvh - 24px);overflow:auto;background:#fff;color:#000;border-radius:18px;padding:clamp(16px,5vw,25px);box-shadow:0 18px 70px #0005;text-align:center;font-family:Arial,sans-serif"><div style="font-size:42px;margin-bottom:8px">🔔</div><h2 id="tnPushTitle" style="margin:0 0 12px;font-size:22px;color:#000!important">تفعيل إشعارات الهاتف</h2><p id="tnPushIntro" style="line-height:1.9;margin:0 0 20px;color:#000!important">هل تسمح لتوجيذر بإرسال إشعارات مهمة إليك حتى عندما يكون الموقع مغلقًا؟ سيظهر هذا الطلب مرة واحدة على هذا المتصفح.</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button id="tnPushAllow" type="button" style="appearance:none;-webkit-appearance:none;border:0!important;border-radius:10px;background:#16a34a!important;background-color:#16a34a!important;background-image:none!important;color:#ffffff!important;padding:12px 22px;font-weight:700;cursor:pointer;box-shadow:none!important;opacity:1!important;filter:none!important">موافق، تفعيل الإشعارات</button><button id="tnPushLater" type="button" style="appearance:none;-webkit-appearance:none;border:0!important;border-radius:10px;background:#dc2626!important;background-color:#dc2626!important;background-image:none!important;color:#ffffff!important;padding:12px 22px;font-weight:700;cursor:pointer;box-shadow:none!important;opacity:1!important;filter:none!important">رفض الإشعارات</button></div><p id="tnPushDialogStatus" style="font-size:13px;color:#b42318;margin:12px 0 0" aria-live="polite"></p></div>';
  Object.assign(overlay.style,{position:"fixed",inset:"0",background:"#071426b8",zIndex:"2147483000",display:"flex",alignItems:"center",justifyContent:"center",padding:"18px"});
  document.body.appendChild(overlay);
  const msg=$("#tnPushDialogStatus"),allow=$("#tnPushAllow");
