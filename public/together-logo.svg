@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 700 190" role="img" aria-labelledby="title desc">
+<title id="title">Together — We Seek Perfection</title>
+<desc id="desc">Gold and white interlocking T and O monogram beside the bold Together wordmark, with tagline below; transparent background.</desc>
+<!-- Compact interlocking T/O monogram to the LEFT of the wordmark -->
+<g transform="translate(14 9)">
+  <!-- T crossbar -->
+  <path d="M8 8H142L126 25H24Z" fill="#d5ad45"/>
+  <!-- T stem -->
+  <path d="M53 22H97V112C97 130 88 140 75 140C62 140 53 130 53 112Z" fill="#f8fafc"/>
+  <path d="M39 123C49 137 61 145 75 145C90 145 102 137 112 123L98 123C92 130 84 134 75 134C65 134 57 130 51 123Z" fill="#f8fafc"/>
+  <!-- O loop interwoven around the T -->
+  <path d="M88 44C124 49 149 76 149 105C149 143 120 169 84 169C49 169 21 145 17 114C14 89 27 66 49 54L49 73C37 83 31 97 33 112C36 135 57 151 82 151C109 151 130 132 130 106C130 86 118 68 99 61Z" fill="#d5ad45"/>
+  <path d="M46 56C25 68 17 88 19 109C21 130 34 146 53 154C39 140 32 126 32 109C32 93 39 77 54 67Z" fill="#f8fafc"/>
+</g>
+<!-- Bold wordmark to the RIGHT of the monogram -->
+<text x="183" y="92" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="900" text-anchor="start" fill="#f8fafc" letter-spacing="-2.8" stroke="#f8fafc" stroke-width="1.7" paint-order="stroke fill">T<tspan fill="#d5ad45" stroke="#d5ad45">o</tspan>gether</text>
+<path d="M188 124H226M611 124H649" stroke="#d5ad45" stroke-width="3"/>
+<text x="419" y="132" font-family="Arial, Helvetica, sans-serif" font-size="13.5" font-weight="900" letter-spacing="4.2" text-anchor="middle" fill="#f8fafc" stroke="#f8fafc" stroke-width=".4" paint-order="stroke fill">WE SEEK PERFECTION</text>
+</svg>
