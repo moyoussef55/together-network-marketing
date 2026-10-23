@@ -31,4 +31,4 @@ async function setupPush(){await ensurePushModule();await window.TogetherPush.re
 $("#enablePush").onclick=async()=>{const b=$("#enablePush");b.disabled=true;$("#pushStatus").textContent="جارٍ تفعيل إشعارات الهاتف…";try{await ensurePushModule();await window.TogetherPush.enable()}catch(e){$("#pushStatus").textContent=e.message||"تعذر تفعيل الإشعارات."}finally{b.disabled=false}};
 setupPush().catch(e=>{$("#pushStatus").textContent=e.message||"تعذر تجهيز الإشعارات.";});
 load().catch(e=>$("#messages").textContent=e.message);
-</script><script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=565"></script><script src="/theme-toggle.js?v=452"></script></body></html>
+</script><script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=565"></script><script src="/theme-toggle.js?v=600"></script></body></html>
