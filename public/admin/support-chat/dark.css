@@ -1,0 +1,68 @@
+/* Together Network Marketing — admin support chat dark theme */
+:root{color-scheme:dark}
+body:has(main.shell) {background:#07111f!important;color:#e5edf7!important}
+body main.shell{color:#e5edf7!important}
+body main.shell .top,body main.shell .panel{background:#101c2d!important;border:1px solid #26364c!important;color:#e5edf7!important;box-shadow:0 12px 32px #0003}
+body main.shell .top{border-radius:16px}
+body main.shell .logo,body main.shell .logo>div{color:#f8fafc!important}
+body main.shell .muted,body main.shell>p.muted{color:#a7b6ca!important;-webkit-text-fill-color:#a7b6ca!important}
+body main.shell .layout .panel h2{color:#f1f5f9!important;-webkit-text-fill-color:#f1f5f9!important}
+body main.shell input#search{background:#0b1626!important;color:#f1f5f9!important;border:1px solid #34465e!important}
+body main.shell input#search::placeholder,body main.shell textarea#message::placeholder{color:#93a4ba!important}
+body main.shell #threads button.thread{background:#142338!important;border:1px solid #2c4059!important;color:#f8fafc!important;-webkit-text-fill-color:#f8fafc!important}
+body main.shell #threads button.thread:hover{background:#1b304a!important;border-color:#47709d!important}
+body main.shell #threads button.thread.active{background:#17395b!important;border-color:#3289e8!important;box-shadow:inset 3px 0 #4ba3ff}
+body main.shell #threads button.thread>strong,body main.shell #threads button.thread>strong>span:first-child{color:#fff!important;-webkit-text-fill-color:#fff!important;opacity:1!important;visibility:visible!important}
+body main.shell #threads button.thread .preview{color:#a7b8ce!important;-webkit-text-fill-color:#a7b8ce!important}
+body main.shell #threads button.thread .unread{background:#dc2626!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+body main.shell #chat.chat{background:#0a1524!important;background-image:radial-gradient(#26364a .65px,transparent .65px)!important;background-size:14px 14px!important;border:1px solid #26364c!important}
+body main.shell #chat .bubble{background:#1a293d!important;border:1px solid #34445b!important;color:#edf4fc!important;box-shadow:0 2px 7px #0003!important}
+body main.shell #chat .bubble.admin{background:#123d64!important;border-color:#245d8c!important;color:#f3f8ff!important}
+body main.shell #chat .bubble time{color:#a7b6ca!important}
+body main.shell #chat .bubble a,body main.shell .filelink{color:#7cc1ff!important}
+body main.shell #form.compose{background:#0d1929!important;border:1px solid #2b3d54!important;box-shadow:0 5px 18px #0003!important}
+body main.shell #form.compose textarea{background:#091422!important;border:1px solid #34465e!important;color:#f1f5f9!important}
+body main.shell #form.compose textarea:focus{border-color:#3b9bff!important;box-shadow:0 0 0 3px #3b82f633!important}
+body main.shell #form.compose button#send{background:linear-gradient(135deg,#1684f8,#075dc9)!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#176bc0!important}
+body main.shell #form.compose button#pick.attachBtn{background:#26364a!important;color:#f1f5f9!important;-webkit-text-fill-color:#f1f5f9!important;border:1px solid #40536b!important}
+body main.shell #form.compose button.recordBtn{background:#4b1b30!important;color:#fecdd3!important;-webkit-text-fill-color:#fecdd3!important;border:1px solid #8c2e4d!important}
+body main.shell #form.compose button.recordBtn.recording{background:#b91c1c!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+body main.shell #form.compose button:disabled{opacity:.72!important}
+body main.shell #pending.pending span{background:#17263a!important;color:#e5edf7!important;-webkit-text-fill-color:#e5edf7!important;border:1px solid #354a63!important}
+body main.shell #pending.pending button[data-remove]{background:#b91c1c!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+body main.shell .uploadState{color:#bdcce0!important}
+body main.shell .uploadError{color:#fca5a5!important}
+body main.shell .previewFallback{color:#fcd34d!important}
+body main.shell .pdfPreview{background:#111e30!important;border-color:#35465c!important}
+body main.shell .pendingPreview{background:#0b1626!important}
+body main.shell .voiceTimer{background:#351b2b!important;border-color:#71334a!important;color:#fda4af!important}
+body main.shell .voicePlayer{background:#142337!important;border-color:#33475f!important;color:#e5edf7!important}
+body main.shell .voiceTitle,body main.shell .voiceMeta{color:#bdcce0!important}
+body main.shell .voiceSpeed{background:#1c2d43!important;border-color:#40536b!important;color:#f1f5f9!important;-webkit-text-fill-color:#f1f5f9!important}
+body main.shell .voicePlay{background:#087f8c!important;color:#fff!important;-webkit-text-fill-color:#fff!important}
+body main.shell button:focus-visible,body main.shell input:focus-visible,body main.shell textarea:focus-visible{outline:2px solid #60a5fa!important;outline-offset:2px}
+@media(max-width:760px){body main.shell .layout{grid-template-columns:1fr}body main.shell .threads{max-height:240px}body main.shell #form.compose{background:#0d1929!important}}
+
+/* Light mode: off-white surfaces and readable marketer names/messages. */
+body[data-theme="light"]:has(main.shell),html[data-theme="light"] body:has(main.shell){background:#faf8f3!important;color:#33251c!important;color-scheme:light!important}
+body[data-theme="light"] main.shell,html[data-theme="light"] body main.shell{color:#33251c!important}
+body[data-theme="light"] main.shell .top,body[data-theme="light"] main.shell .panel,html[data-theme="light"] body main.shell .top,html[data-theme="light"] body main.shell .panel{background:#fffdf9!important;border-color:#e2d5c5!important;color:#33251c!important;box-shadow:0 8px 24px #5b463014!important}
+body[data-theme="light"] main.shell .logo,body[data-theme="light"] main.shell .logo>div,body[data-theme="light"] main.shell .layout .panel h2,html[data-theme="light"] body main.shell .layout .panel h2{color:#33251c!important;-webkit-text-fill-color:#33251c!important}
+body[data-theme="light"] main.shell .muted,body[data-theme="light"] main.shell>p.muted,body[data-theme="light"] main.shell #status,html[data-theme="light"] body main.shell .muted{color:#665548!important;-webkit-text-fill-color:#665548!important}
+body[data-theme="light"] main.shell input#search,html[data-theme="light"] body main.shell input#search{background:#fff!important;color:#33251c!important;border:1px solid #d8c8b5!important}
+body[data-theme="light"] main.shell input#search::placeholder,body[data-theme="light"] main.shell textarea#message::placeholder{color:#806f60!important;-webkit-text-fill-color:#806f60!important}
+body[data-theme="light"] main.shell #threads button.thread,html[data-theme="light"] body main.shell #threads button.thread{background:#fffdf9!important;border-color:#e2d5c5!important;color:#33251c!important;-webkit-text-fill-color:#33251c!important}
+body[data-theme="light"] main.shell #threads button.thread>strong,body[data-theme="light"] main.shell #threads button.thread>strong>span:first-child,body[data-theme="light"] main.shell #threads button.thread strong span,html[data-theme="light"] body main.shell #threads button.thread strong{color:#33251c!important;-webkit-text-fill-color:#33251c!important;opacity:1!important;visibility:visible!important}
+body[data-theme="light"] main.shell #threads button.thread .preview,html[data-theme="light"] body main.shell #threads button.thread .preview{color:#6b5b4d!important;-webkit-text-fill-color:#6b5b4d!important}
+body[data-theme="light"] main.shell #threads button.thread.active{background:#f1e6d8!important;border-color:#b98b62!important}
+body[data-theme="light"] main.shell #chat.chat,html[data-theme="light"] body main.shell #chat.chat{background:#f5f1e9!important;background-image:radial-gradient(#e5dacb .65px,transparent .65px)!important;background-size:14px 14px!important;border-color:#e2d5c5!important}
+body[data-theme="light"] main.shell #chat .bubble,html[data-theme="light"] body main.shell #chat .bubble{background:#fffdf9!important;border:1px solid #e2d5c5!important;color:#33251c!important;-webkit-text-fill-color:#33251c!important}
+body[data-theme="light"] main.shell #chat .bubble.admin{background:#e6f2ff!important;border-color:#b7d7f5!important;color:#183a59!important;-webkit-text-fill-color:#183a59!important}
+body[data-theme="light"] main.shell #chat .bubble time{color:#76685c!important;-webkit-text-fill-color:#76685c!important}
+body[data-theme="light"] main.shell #chat .bubble a,body[data-theme="light"] main.shell .filelink{color:#075db3!important;-webkit-text-fill-color:#075db3!important}
+body[data-theme="light"] main.shell #form.compose,html[data-theme="light"] body main.shell #form.compose{background:#fffdf9!important;border-color:#e2d5c5!important}
+body[data-theme="light"] main.shell #form.compose textarea,html[data-theme="light"] body main.shell #form.compose textarea{background:#fff!important;border-color:#d8c8b5!important;color:#33251c!important;-webkit-text-fill-color:#33251c!important}
+body[data-theme="light"] main.shell #pending.pending span{background:#f4eee5!important;color:#33251c!important;-webkit-text-fill-color:#33251c!important;border-color:#e2d5c5!important}
+body[data-theme="light"] main.shell .uploadState{color:#665548!important;-webkit-text-fill-color:#665548!important}
+body[data-theme="light"] main.shell .voicePlayer{background:#f1ece4!important;border-color:#ded2c3!important;color:#33251c!important}
+body[data-theme="light"] main.shell .voiceTitle,body[data-theme="light"] main.shell .voiceMeta{color:#665548!important;-webkit-text-fill-color:#665548!important}
