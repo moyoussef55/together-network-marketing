@@ -10,7 +10,7 @@ body a[href*="hatchable.com/?utm_source=badge"],body a[href*="utm_content=togeth
 </style></head>
 <body><main class="shell">
 <header class="top"><div><h1 style="margin:0">🚀 مركز SEO والذكاء الاصطناعي</h1><div class="hint">تحسين بيانات البحث والمشاركة ومراجعة أساسيات الظهور للموقع العام.</div></div><a class="btn" href="/admin/">العودة للوحة الإدارة</a></header>
-<section class="panel"><h2>🧠 مولّد بيانات SEO بالذكاء الاصطناعي</h2><p class="hint">اكتب موضوع الصفحة ومحتواها أو الصق النص الأساسي، ثم اضغط توليد. ستُملأ الحقول كمسودة للمراجعة ولن تُحفظ قبل ضغط زر الحفظ.</p><div class="tip">ملاحظة تشغيل: التوليد الآلي يحتاج إضافة GEMINI_API_KEY إلى متغيرات البيئة السرية على خادم Namecheap. لا تضع المفتاح في هذه الصفحة أو في GitHub.</div>
+<section class="panel"><h2>🧠 مولّد بيانات SEO بالذكاء الاصطناعي</h2><p class="hint">اكتب موضوع الصفحة ومحتواها أو الصق النص الأساسي، ثم اضغط توليد. ستُملأ الحقول كمسودة للمراجعة ولن تُحفظ قبل ضغط زر الحفظ.</p><div class="tip">ملاحظة تشغيل: التوليد الآلي يحتاج تفعيل Builder + AI من إعدادات Hatchable أو ربط مفتاح OpenAI API. إذا لم تكن الخدمة مفعّلة فستظل حقول SEO اليدوية والحفظ متاحة.</div>
 <div class="fields">
 <label class="field">موضوع الصفحة أو الخدمة<input id="topic" maxlength="1200" placeholder="مثال: منصة إدارة شبكة المبيعات والإنجازات"></label>
 <label class="field">العبارة المفتاحية المستهدفة<input id="focusPhrase" maxlength="180" placeholder="العبارة الأساسية"></label>
@@ -57,4 +57,4 @@ $("generate").onclick=async()=>{const b=$("generate");b.disabled=true;$("aiStatu
 $("clearAi").onclick=()=>{$("topic").value="";$("focusPhrase").value="";$("content").value="";$("aiStatus").textContent="تم مسح مدخلات التوليد.";$("tips").innerHTML=""};
 function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
 for(const id of ids)$(id).addEventListener("input",updateAudit);load();
-</script></body></html>
+</script><script src="/theme-toggle.js?v=600"></script></body></html>
