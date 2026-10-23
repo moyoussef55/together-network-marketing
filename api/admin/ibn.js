@@ -14,10 +14,26 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
     let where="";
     if(q){
       values.push("%"+q+"%");
-      where="WHERE code ILIKE $1 OR COALESCE(created_by_id,'') ILIKE $1 OR COALESCE(used_by_upline_id,'') ILIKE $1 OR COALESCE(registered_agent_id,'') ILIKE $1";
+      where=`WHERE i.code ILIKE $1
+        OR COALESCE(i.created_by_id,'') ILIKE $1
+        OR COALESCE(i.used_by_upline_id,'') ILIKE $1
+        OR COALESCE(i.registered_agent_id,'') ILIKE $1
+        OR COALESCE(registered.display_name,'') ILIKE $1
+        OR COALESCE(registered.referral_code,'') ILIKE $1
+        OR COALESCE(upline.display_name,'') ILIKE $1
+        OR COALESCE(upline.referral_code,'') ILIKE $1`;
     }
-    const rows=await db.query(`SELECT id,code,amount,quantity,expires_at,used_count,active,created_at,created_by_id,used_by_upline_id,registered_agent_id,used_at
-      FROM network_ibns ${where} ORDER BY created_at DESC LIMIT 500`,values);
+    const rows=await db.query(`SELECT i.id,i.code,i.amount,i.quantity,i.expires_at,i.used_count,i.active,
+        i.created_at,i.created_by_id,i.used_by_upline_id,i.registered_agent_id,i.used_at,
+        registered.display_name AS registered_marketer_name,
+        registered.referral_code AS registered_marketer_code,
+        upline.display_name AS upline_marketer_name,
+        upline.referral_code AS upline_marketer_code
+      FROM network_ibns i
+      LEFT JOIN app_profiles registered ON registered.id::text=i.registered_agent_id
+      LEFT JOIN app_profiles upline ON upline.id::text=i.used_by_upline_id
+      ${where}
+      ORDER BY i.used_at DESC NULLS LAST,i.created_at DESC LIMIT 500`,values);
     return res.json({ibns:rows.rows});
   }
 
