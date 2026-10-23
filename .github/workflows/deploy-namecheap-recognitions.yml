@@ -1,5 +1,6 @@
 name: Deploy recognition moderation to Namecheap
 on:
+  workflow_dispatch:
   push:
     branches:
       - namecheap-runtime-prep
