@@ -49,6 +49,14 @@ jobs:
             "public/store/index.html"
             "public/store/product/index.html"
             "public/login.html"
+            "public/index.html"
+            "public/marketer/agent-confirm/index.html"
+            "public/marketer/agent-welcome/index.html"
+            "public/marketer/agent/index.html"
+            "public/marketer/products/index.html"
+            "public/marketer/reports/index.html"
+            "public/marketer/team-checks/index.html"
+            "public/marketer/network/index.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
             "public/marketer/withdraw/index.html"
@@ -96,6 +104,15 @@ jobs:
           grep -Fq 'tnProductLightModeFix' public/store/product/index.html
           grep -Fq 'theme-toggle.js?v=600' public/store/product/index.html
           grep -Fq 'theme-toggle.js' public/login.html
+          grep -Fq '/api/homepage-settings' public/index.html
+          grep -Fq '/api/seo-public' public/index.html
+          grep -Fq '/api/network/confirm-agent' public/marketer/agent-confirm/index.html
+          grep -Fq '/api/network/agent?member_id=' public/marketer/agent-welcome/index.html
+          grep -Fq '/api/network/agent' public/marketer/agent/index.html
+          grep -Fq '/api/store/order' public/marketer/products/index.html
+          grep -Fq '/api/marketer/reports' public/marketer/reports/index.html
+          grep -Fq '/api/marketer/team-checks' public/marketer/team-checks/index.html
+          grep -Fq '/marketer/my-network/' public/marketer/network/index.html
           grep -Fq '/api/admin/withdrawals' public/admin/withdrawals/index.html
           grep -Fq '/api/marketer/wallet' public/marketer/wallet/index.html
           grep -Fq '/api/marketer/withdrawals' public/marketer/withdraw/index.html
@@ -151,6 +168,14 @@ jobs:
             "public/store/index.html"
             "public/store/product/index.html"
             "public/login.html"
+            "public/index.html"
+            "public/marketer/agent-confirm/index.html"
+            "public/marketer/agent-welcome/index.html"
+            "public/marketer/agent/index.html"
+            "public/marketer/products/index.html"
+            "public/marketer/reports/index.html"
+            "public/marketer/team-checks/index.html"
+            "public/marketer/network/index.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
             "public/marketer/withdraw/index.html"
@@ -215,6 +240,14 @@ jobs:
             "public/store/index.html"
             "public/store/product/index.html"
             "public/login.html"
+            "public/index.html"
+            "public/marketer/agent-confirm/index.html"
+            "public/marketer/agent-welcome/index.html"
+            "public/marketer/agent/index.html"
+            "public/marketer/products/index.html"
+            "public/marketer/reports/index.html"
+            "public/marketer/team-checks/index.html"
+            "public/marketer/network/index.html"
             "public/admin/withdrawals/index.html"
             "public/marketer/wallet/index.html"
             "public/marketer/withdraw/index.html"
