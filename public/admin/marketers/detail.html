@@ -31,4 +31,4 @@ async function wallet(mode){const v=Number($("f_wallet_amount").value);if(!(v>0)
 async function bv(mode){const v=Number($("f_bv").value),position=Number($("position").value),side=$("side").value;if(!(v>0))return alert("اكتب قيمة BV صحيحة");if(mode==="real"&&!confirm("سيتم تسجيل BV حقيقي وقد يؤثر على الـ uplines. هل أنت متأكد؟"))return;await act({action:"manual_bv",mode,bv:v,account_position:position,side})}
 async function load(){if(!mid){$("content").innerHTML="<div class='box'>المسوق غير محدد.</div>";return}try{render(await api("/api/admin/marketer-detail?id="+encodeURIComponent(mid)))}catch(e){$("content").innerHTML="<div class='box'>تعذر تحميل البيانات: "+esc(e.message)+"</div>"}}
 load();
-</script><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=452"></script></body></html>
+</script><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=600"></script></body></html>
