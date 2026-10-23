@@ -88,3 +88,6 @@ jobs:
               echo "=== END DIFF: $REL ==="
             fi
           done
+          echo "=== LIVE_PRODUCT_HTML_BASE64_BEGIN ==="
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" 'set -e; F=/home/togeiign/marketing-network/public/store/product/index.html; test -f "$F"; test ! -L "$F"; base64 "$F" | fold -w 2400'
+          echo "=== LIVE_PRODUCT_HTML_BASE64_END ==="
