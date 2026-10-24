@@ -180,7 +180,7 @@ jobs:
             "lib/admin-auth.js"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
-          tar -czf - "${{FILES[@]}" | ssh \
+          tar -czf - "${FILES[@]}" | ssh \
             -p "$PORT" \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
@@ -221,7 +221,7 @@ jobs:
           )
 
           test -d "$ROOT"
-          for REL in "${{FILES[@]}"; do
+          for REL in "${FILES[@]}"; do
             test -s "$STAGE/$REL"
             test -f "$ROOT/$REL" && test ! -L "$ROOT/$REL"
           done
@@ -239,7 +239,7 @@ jobs:
           BACKUPS=()
 
           # Prepare all six backups and incoming files before replacing any live target.
-          for REL in "${{FILES[@]}"; do
+          for REL in "${FILES[@]}"; do
             TARGET="$ROOT/$REL"
             STAGED_FILE="$STAGE/$REL"
             DIR="$(dirname "$TARGET")"
@@ -257,21 +257,21 @@ jobs:
           done
 
           rollback() {
-            for ((i=0; i<${{#TARGETS[@]}; i++)); do
-              cp -p "${{BACKUPS[$i]}" "${{TARGETS[$i]}" || true
-              rm -f "${{INCOMING[$i]}" || true
+            for ((i=0; i<${#TARGETS[@]}; i++)); do
+              cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true
+              rm -f "${INCOMING[$i]}" || true
             done
           }
 
-          for ((i=0; i<${{#TARGETS[@]}; i++)); do
-            if ! mv -f "${{INCOMING[$i]}" "${{TARGETS[$i]}"; then
+          for ((i=0; i<${#TARGETS[@]}; i++)); do
+            if ! mv -f "${INCOMING[$i]}" "${TARGETS[$i]}"; then
               rollback
               echo "INSTALL_FAILED: original files restored" >&2
               exit 1
             fi
           done
-          for ((i=0; i<${{#TARGETS[@]}; i++)); do
-            if ! cmp -s "${{STAGED[$i]}" "${{TARGETS[$i]}"; then
+          for ((i=0; i<${#TARGETS[@]}; i++)); do
+            if ! cmp -s "${STAGED[$i]}" "${TARGETS[$i]}"; then
               rollback
               echo "VERIFY_FAILED: original files restored" >&2
               exit 1
@@ -282,9 +282,9 @@ jobs:
           mkdir -p "$ROOT/tmp"
           touch "$ROOT/tmp/restart.txt"
           echo "=== LIVE FILE HASHES ==="
-          sha256sum "${{TARGETS[@]}"
-          for ((i=0; i<${{#TARGETS[@]}; i++)); do
-            echo "BACKUP_CREATED=${{BACKUPS[$i]}"
+          sha256sum "${TARGETS[@]}"
+          for ((i=0; i<${#TARGETS[@]}; i++)); do
+            echo "BACKUP_CREATED=${BACKUPS[$i]}"
           done
           echo "NAMECHEAP_REMEMBER_ME_AUTH_DEPLOY_OK"
           rm -rf "$STAGE"
