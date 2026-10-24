@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: namecheap-polling-optimization
+  group: namecheap-polling-optimization-perl-v2
   cancel-in-progress: true
 
 jobs:
