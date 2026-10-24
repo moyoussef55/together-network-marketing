@@ -35,15 +35,15 @@ jobs:
       - name: Load the Namecheap SSH key
         uses: webfactory/ssh-agent@v0.9.0
         with:
-          ssh-private-key: \${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
       - name: Patch only background polling on the live site
         shell: bash
         env:
-          HOST: \${{ secrets.NAMECHEAP_SSH_HOST }}
-          PORT: \${{ secrets.NAMECHEAP_SSH_PORT }}
-          USER: \${{ secrets.NAMECHEAP_SSH_USER }}
-          RUN_ID: \${{ github.run_id }}
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
           ssh -T \
@@ -178,9 +178,9 @@ jobs:
       - name: Copy the verified live pages back into the repository workspace
         shell: bash
         env:
-          HOST: \${{ secrets.NAMECHEAP_SSH_HOST }}
-          PORT: \${{ secrets.NAMECHEAP_SSH_PORT }}
-          USER: \${{ secrets.NAMECHEAP_SSH_USER }}
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
         run: |
           set -euo pipefail
           FILES=(
@@ -198,9 +198,9 @@ jobs:
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ConnectTimeout=15 \
             "$USER@$HOST" \
-            "tar -czf - -C /home/togeiign/marketing-network \${FILES[*]}" \
+            "tar -czf - -C /home/togeiign/marketing-network ${FILES[*]}" \
             | tar -xzf - -C "$RUNNER_TEMP/live-polling-snapshot"
-          for FILE in "\${FILES[@]}"; do
+          for FILE in "${FILES[@]}"; do
             test -s "$RUNNER_TEMP/live-polling-snapshot/$FILE"
             cp "$RUNNER_TEMP/live-polling-snapshot/$FILE" "$FILE"
             echo "SOURCE_SYNCED_FROM_LIVE $FILE"
@@ -210,7 +210,7 @@ jobs:
       - name: Save the exact optimized pages in GitHub without triggering broad deployments
         shell: bash
         env:
-          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
