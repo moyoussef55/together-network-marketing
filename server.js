@@ -177,7 +177,7 @@ app.post("/api/admin/events", async (req, res) => {
 app.use("/api", async (req, res, next) => {
   // These SEO endpoints run on Namecheap but use the same Hatchable PostgreSQL database.
   // All other API routes continue through the existing Hatchable proxy unchanged.
-  if (["/admin/seo-settings", "/admin/seo-generate", "/seo-public"].includes(req.path)) return next();
+  if (["/admin/seo-settings", "/admin/seo-generate", "/seo-public", "/network/agent"].includes(req.path)) return next();
   let target;
   try {
     target = new URL(req.originalUrl, HATCHABLE_API_ORIGIN);
