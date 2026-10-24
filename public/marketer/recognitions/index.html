@@ -40,6 +40,27 @@ body[data-theme="light"] .post img,
 body[data-theme="light"] .post video{background:#f3eee5!important}
 body[data-theme="light"] .admin-menu{background:#fffdf9!important;color:#33251c!important;border-color:#d8c7b4!important;box-shadow:0 12px 28px #432c1c22!important}
 body[data-theme="light"] .admin-menu .danger{background:#a92332!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:#811b27!important}
+/* Final light-mode contrast override: warm off-white surfaces and dark readable text. */
+body[data-theme="light"]{color-scheme:light!important}
+body[data-theme="light"] .feed-wrap,
+body[data-theme="light"] .feed-wrap .hero,
+body[data-theme="light"] .feed-wrap .post,
+body[data-theme="light"] .feed-wrap .compose,
+body[data-theme="light"] .feed-wrap .empty{background:#fffdf9!important;background-color:#fffdf9!important;color:#33251c!important;border-color:#e0d2c2!important;box-shadow:0 6px 22px #432c1c0c!important}
+body[data-theme="light"] .feed-wrap .hero h1,
+body[data-theme="light"] .feed-wrap .hero p,
+body[data-theme="light"] .feed-wrap .post-head h3,
+body[data-theme="light"] .feed-wrap .post-head small,
+body[data-theme="light"] .feed-wrap .desc,
+body[data-theme="light"] .feed-wrap .comment-name,
+body[data-theme="light"] .feed-wrap .comment-body,
+body[data-theme="light"] .feed-wrap .muted,
+body[data-theme="light"] .feed-wrap .status,
+body[data-theme="light"] .feed-wrap .compose h3,
+body[data-theme="light"] .feed-wrap .empty,
+body[data-theme="light"] .feed-wrap .empty *{color:#33251c!important;-webkit-text-fill-color:#33251c!important;opacity:1!important}
+body[data-theme="light"] .feed-wrap .reactions,
+body[data-theme="light"] .feed-wrap .bubble{background:#f6f0e7!important;background-color:#f6f0e7!important;color:#33251c!important;-webkit-text-fill-color:#33251c!important;border-color:#e0d2c2!important}
 </style></head><body class="app-shell"><main class="main-content"><div class="feed-wrap"><header class="hero"><p class="muted">TOGETHER • TEAM SPOTLIGHT</p><h1>🏆 التكريمات</h1><p class="muted">نحتفل بإنجازات فريق توجيذر. شاهد التكريمات، تفاعل معها، وشارك التهاني والتعليقات.</p><div class="toolbar"><a href="/marketer/dashboard/">لوحة التحكم</a><a href="/marketer/recognitions/notifications/">🔔 الإشعارات <b id="unread">0</b></a></div></header><div id="status" class="status">جارٍ تحميل التكريمات…</div><section id="compose" class="compose" hidden><h3>نشر منشور (صلاحية خاصة)</h3><textarea id="newDescription" maxlength="5000" placeholder="شارك إنجازك مع الفريق..."></textarea><input id="newMedia" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"><div id="newPreview"></div><button id="publish">نشر المنشور</button></section><div id="feed"></div></div></main><script src="/marketer-sidebar.js?v=565"></script><script>
 const $=s=>document.querySelector(s);let data={posts:[],comments:[]},replyTo=null,canComment=true,adminMode=false;
 function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
