@@ -6,6 +6,7 @@ on:
       - namecheap-runtime-prep
     paths:
       - ".github/workflows/deploy-namecheap-hatchable-ui.yml"
+      - "public/**"
 
 permissions:
   contents: read
@@ -27,8 +28,15 @@ jobs:
         run: |
           set -euo pipefail
           FILES=(
+            "public/admin/commission-reports/index.html"
             "public/admin/events/index.html"
             "public/admin/homepage/index.html"
+            "public/admin/ibn/index.html"
+            "public/admin/index.html"
+            "public/admin/network/index.html"
+            "public/admin/products/index.html"
+            "public/admin/recognitions/index.html"
+            "public/admin/reports/index.html"
             "public/admin/seo/index.html"
             "public/admin/targets/index.html"
             "public/admin/messages/index.html"
@@ -39,16 +47,25 @@ jobs:
             "public/marketer/messages/index.html"
             "public/marketer/my-network/index.html"
             "public/marketer/profile/index.html"
+            "public/marketer/recognitions/index.html"
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-push.js"
             "public/marketer-sidebar.js"
+            "public/marketer/dashboard/index.html"
             "public/theme-toggle.js"
+            "public/theme.css"
             "public/alternate-theme.css"
             "public/together-logo.svg"
+            "public/pwa-icon.svg"
+            "public/robots.txt"
+            "public/sitemap.xml"
             "public/store/index.html"
             "public/store/product/index.html"
+            "public/login-platform-otp.html"
             "public/login.html"
+            "public/manifest.json"
             "public/index.html"
             "public/marketer/agent-confirm/index.html"
             "public/marketer/agent-welcome/index.html"
@@ -84,6 +101,15 @@ jobs:
             sha256sum "$FILE"
           done
           # Guard important page/API pairings before transferring UI files.
+          grep -Fq '/api/admin/commission-reports' public/admin/commission-reports/index.html
+          grep -Fq '/api/admin/ibn' public/admin/ibn/index.html
+          grep -Fq '/api/admin/network' public/admin/network/index.html
+          grep -Fq '/api/admin/recognitions' public/admin/recognitions/index.html
+          grep -Fq '/api/admin/reports' public/admin/reports/index.html
+          grep -Fq 'body[data-theme="light"]' public/theme.css
+          grep -Fq 'alternate-theme.css?v=620' public/theme-toggle.js
+          grep -Fq 'theme-toggle.js?v=620' public/marketer/dashboard/index.html
+          ! grep -Fq 'body:has(.tn-fixed-brand) #togetherThemeToggle{display:none!important}' public/marketer-sidebar.js
           grep -Fq '/api/admin/events' public/admin/events/index.html
           grep -Fq '/api/admin/homepage-settings' public/admin/homepage/index.html
           grep -Fq '/api/admin/seo-settings' public/admin/seo/index.html
@@ -159,8 +185,15 @@ jobs:
         run: |
           set -euo pipefail
           FILES=(
+            "public/admin/commission-reports/index.html"
             "public/admin/events/index.html"
             "public/admin/homepage/index.html"
+            "public/admin/ibn/index.html"
+            "public/admin/index.html"
+            "public/admin/network/index.html"
+            "public/admin/products/index.html"
+            "public/admin/recognitions/index.html"
+            "public/admin/reports/index.html"
             "public/admin/seo/index.html"
             "public/admin/targets/index.html"
             "public/admin/messages/index.html"
@@ -171,16 +204,25 @@ jobs:
             "public/marketer/messages/index.html"
             "public/marketer/my-network/index.html"
             "public/marketer/profile/index.html"
+            "public/marketer/recognitions/index.html"
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-push.js"
             "public/marketer-sidebar.js"
+            "public/marketer/dashboard/index.html"
             "public/theme-toggle.js"
+            "public/theme.css"
             "public/alternate-theme.css"
             "public/together-logo.svg"
+            "public/pwa-icon.svg"
+            "public/robots.txt"
+            "public/sitemap.xml"
             "public/store/index.html"
             "public/store/product/index.html"
+            "public/login-platform-otp.html"
             "public/login.html"
+            "public/manifest.json"
             "public/index.html"
             "public/marketer/agent-confirm/index.html"
             "public/marketer/agent-welcome/index.html"
@@ -237,8 +279,15 @@ jobs:
           ROOT="/home/togeiign/marketing-network"
           STAGE="/home/togeiign/.hatchable-ui-stage-$RUN_ID"
           FILES=(
+            "public/admin/commission-reports/index.html"
             "public/admin/events/index.html"
             "public/admin/homepage/index.html"
+            "public/admin/ibn/index.html"
+            "public/admin/index.html"
+            "public/admin/network/index.html"
+            "public/admin/products/index.html"
+            "public/admin/recognitions/index.html"
+            "public/admin/reports/index.html"
             "public/admin/seo/index.html"
             "public/admin/targets/index.html"
             "public/admin/messages/index.html"
@@ -249,16 +298,25 @@ jobs:
             "public/marketer/messages/index.html"
             "public/marketer/my-network/index.html"
             "public/marketer/profile/index.html"
+            "public/marketer/recognitions/index.html"
             "public/marketer/settings/index.html"
             "public/marketer/support/index.html"
             "public/marketer/recognitions/notifications/index.html"
+            "public/marketer-push.js"
             "public/marketer-sidebar.js"
+            "public/marketer/dashboard/index.html"
             "public/theme-toggle.js"
+            "public/theme.css"
             "public/alternate-theme.css"
             "public/together-logo.svg"
+            "public/pwa-icon.svg"
+            "public/robots.txt"
+            "public/sitemap.xml"
             "public/store/index.html"
             "public/store/product/index.html"
+            "public/login-platform-otp.html"
             "public/login.html"
+            "public/manifest.json"
             "public/index.html"
             "public/marketer/agent-confirm/index.html"
             "public/marketer/agent-welcome/index.html"
@@ -309,8 +367,16 @@ jobs:
             TARGET="$ROOT/$REL"
             test -s "$SRC"
             test ! -L "$SRC"
-            test -d "$(dirname "$TARGET")" || { echo "MISSING_TARGET_DIRECTORY=$REL" >&2; exit 1; }
-            if [ -L "$TARGET" ]; then echo "REFUSING_SYMLINK=$REL" >&2; exit 1; fi
+            TARGET_DIR_REL="${REL%/*}"
+            CURRENT="$ROOT"
+            test ! -L "$CURRENT" || { echo "REFUSING_ROOT_SYMLINK=$CURRENT" >&2; rollback; exit 1; }
+            IFS='/' read -r -a DIR_PARTS <<< "$TARGET_DIR_REL"
+            for PART in "${DIR_PARTS[@]}"; do
+              CURRENT="$CURRENT/$PART"
+              if [ -L "$CURRENT" ]; then echo "REFUSING_PARENT_SYMLINK=$CURRENT" >&2; rollback; exit 1; fi
+              if [ ! -d "$CURRENT" ]; then mkdir "$CURRENT" || { echo "CANNOT_CREATE_TARGET_DIRECTORY=$CURRENT" >&2; rollback; exit 1; }; fi
+            done
+            if [ -L "$TARGET" ]; then echo "REFUSING_SYMLINK=$REL" >&2; rollback; exit 1; fi
             if [ -e "$TARGET" ]; then
               test -f "$TARGET" || { echo "TARGET_NOT_REGULAR_FILE=$REL" >&2; exit 1; }
             else
