@@ -1,0 +1,75 @@
+name: Restore original Namecheap server entrypoint
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - ".github/workflows/restore-namecheap-server-entrypoint.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-server-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Pin Namecheap host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Restore latest pre-change server backup and restart
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          TARGET="$ROOT/server.js"
+          test -d "$ROOT"
+          test -f "$TARGET"
+          BACKUP="$(find "$ROOT" -maxdepth 1 -type f -name 'server.js.BACKUP-before-network-routing-*' -printf '%T@ %p\n' | sort -nr | head -n 1 | cut -d' ' -f2-)"
+          test -n "$BACKUP"
+          test -s "$BACKUP"
+          RESTORE="$ROOT/.server.js.restore-$RUN_ID"
+          cp "$BACKUP" "$RESTORE"
+          cmp -s "$BACKUP" "$RESTORE"
+          SAFETY="$TARGET.SAFETY-before-restore-$(date +%Y%m%d-%H%M%S)"
+          cp -p "$TARGET" "$SAFETY"
+          if ! mv -f "$RESTORE" "$TARGET"; then
+            cp -p "$SAFETY" "$TARGET"
+            exit 1
+          fi
+          if ! cmp -s "$BACKUP" "$TARGET"; then
+            cp -p "$SAFETY" "$TARGET"
+            echo "RESTORE_VERIFY_FAILED; safety copy: $SAFETY" >&2
+            exit 1
+          fi
+          mkdir -p "$ROOT/tmp"
+          touch "$ROOT/tmp/restart.txt"
+          echo "RESTORED_FROM=$BACKUP"
+          echo "SAFETY_COPY=$SAFETY"
+          sha256sum "$TARGET"
+          echo "RESTORE_VERIFIED_RESTART_REQUESTED"
+          REMOTE
