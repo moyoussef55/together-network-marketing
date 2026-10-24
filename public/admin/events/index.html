@@ -29,7 +29,7 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
   if(!r.ok)throw Error(d.error==="invalid_chunk_size"||r.status===413?"حجم جزء الرفع تجاوز حد الخادم. أعد المحاولة، وسيتم إرسال الفيديو على أجزاء أصغر.":d.error==="unsupported_media_type"?"نوع ملف غير مدعوم. استخدم MP4 أو WEBM أو MOV للفيديو.":d.error==="missing_upload_chunk"?"لم يصل أحد أجزاء الفيديو. أعد المحاولة لضمان اكتمال الملف.":d.error||("فشل الطلب (HTTP "+r.status+")"));
   return d;
  };
- const post=async body=>responseJson(await fetch("/api/admin/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}));
+ const post=async body=>responseJson(await fetch("/api/admin/events",{method:"POST",headers:{"Content-Type":"application/json","X-Event-Upload-Mode":"chunked"},body:JSON.stringify(body)}));
  const updateProgress=(done,total,label)=>{
   const pct=total?Math.min(99,Math.floor(done/total*100)):0;progress.value=pct;
   status.textContent=label+" — "+pct+"% ("+(done/1048576).toFixed(1)+" من "+(total/1048576).toFixed(1)+" ميجابايت)";
@@ -54,7 +54,7 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
    await Promise.all(jobs);
   }
   status.textContent="جاري تجميع الفيديو وحفظه: "+file.name+"…";
-  const result=await post({upload_action:"finalize_media",upload_id:id,chunks,name:file.name,content_type:file.type||"application/octet-stream"});
+  const result=await post({upload_action:"finalize_media",upload_id:id,chunks,bytes:file.size,name:file.name,content_type:file.type||"application/octet-stream"});
   return result.media;
  }
  form.onsubmit=async e=>{
