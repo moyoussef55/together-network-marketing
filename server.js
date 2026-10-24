@@ -54,6 +54,91 @@ app.post("/api/admin/events", async (req, res) => {
     return;
   }
 
+  if (req.get("x-event-upload-mode") === "chunked" && req.is("application/json")) {
+    return express.json({ limit: "5mb" })(req, res, async parseError => {
+      if (parseError) return res.status(parseError.status === 413 ? 413 : 400).json({ ok: false, error: "invalid_upload_request" });
+      const body = req.body || {};
+      const action = String(body.upload_action || "");
+      const validUploadId = value => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || ""));
+      const chunkDir = path.join(EVENT_UPLOAD_TEMP_DIR, ".chunks");
+      try {
+        await fs.mkdir(chunkDir, { recursive: true });
+        if (action === "upload_chunk") {
+          const uploadId = String(body.upload_id || "");
+          const index = Number(body.index);
+          if (!validUploadId(uploadId)) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
+          if (!Number.isSafeInteger(index) || index < 0 || index > 10000) return res.status(400).json({ ok: false, error: "invalid_chunk_index" });
+          const raw = String(body.data_base64 || "").replace(/^data:[^,]+,/, "");
+          const bytes = Buffer.from(raw, "base64");
+          if (!bytes.length || bytes.length > 2 * 1024 * 1024) return res.status(413).json({ ok: false, error: "invalid_chunk_size" });
+          const chunkPath = path.resolve(chunkDir, uploadId + "-" + index + ".part");
+          if (!chunkPath.startsWith(chunkDir + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
+          await fs.writeFile(chunkPath, bytes);
+          return res.json({ ok: true, index, bytes: bytes.length });
+        }
+        if (action === "finalize_media") {
+          const uploadId = String(body.upload_id || "");
+          const chunks = Number(body.chunks);
+          const expectedBytes = Number(body.bytes);
+          const mime = String(body.content_type || "").split(";")[0].trim().toLowerCase();
+          const ext = allowed.get(mime);
+          if (!validUploadId(uploadId)) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
+          if (!Number.isSafeInteger(chunks) || chunks < 1 || chunks > 10001 || !Number.isSafeInteger(expectedBytes) || expectedBytes < 1 || Math.ceil(expectedBytes / (2 * 1024 * 1024)) !== chunks) return res.status(400).json({ ok: false, error: "invalid_chunk_count" });
+          if (!ext) return res.status(415).json({ ok: false, error: "unsupported_media_type" });
+          const partPaths = Array.from({ length: chunks }, (_, i) => path.resolve(chunkDir, uploadId + "-" + i + ".part"));
+          const key = "namecheap-events/" + crypto.randomUUID() + "." + ext;
+          const finalPath = path.resolve(STORAGE_ROOT, key);
+          if (!finalPath.startsWith(STORAGE_ROOT + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
+          await fs.mkdir(path.dirname(finalPath), { recursive: true });
+          let complete = false, totalBytes = 0;
+          try {
+            const out = await fs.open(finalPath, "w");
+            try {
+              for (let i = 0; i < partPaths.length; i++) {
+                let part;
+                try { part = await fs.readFile(partPaths[i]); }
+                catch { return res.status(400).json({ ok: false, error: "missing_upload_chunk" }); }
+                const expectedPartBytes = i < partPaths.length - 1 ? 2 * 1024 * 1024 : expectedBytes - (2 * 1024 * 1024 * (partPaths.length - 1));
+                if (!part.length || part.length !== expectedPartBytes) return res.status(400).json({ ok: false, error: "invalid_upload_chunk" });
+                await out.writeFile(part);
+                totalBytes += part.length;
+              }
+            } finally { await out.close(); }
+            if (totalBytes !== expectedBytes) return res.status(400).json({ ok: false, error: "upload_size_mismatch" });
+            complete = true;
+          } finally {
+            if (!complete) await fs.rm(finalPath, { force: true }).catch(() => {});
+          }
+          await Promise.all(partPaths.map(part => fs.rm(part, { force: true }).catch(() => {})));
+          return res.json({ ok: true, media: { key, type: mime, name: String(body.name || ("event." + ext)).replace(/[\\\\/\\r\\n]/g, "_").slice(0, 180), bytes: totalBytes } });
+        }
+        if (action !== "publish_uploaded") return res.status(400).json({ ok: false, error: "invalid_upload_action" });
+        const media = Array.isArray(body.media) ? body.media : [];
+        if (!media.length || media.length > 12) return res.status(400).json({ ok: false, error: "media_required" });
+        const files = [];
+        for (const item of media) {
+          const key = String(item.key || "");
+          const mime = String(item.type || "").toLowerCase();
+          const ext = allowed.get(mime);
+          if (!ext || !new RegExp("^namecheap-events/[a-f0-9-]{36}\\\\." + ext + "$", "i").test(key)) return res.status(400).json({ ok: false, error: "invalid_uploaded_media" });
+          const filePath = path.resolve(STORAGE_ROOT, key);
+          if (!filePath.startsWith(STORAGE_ROOT + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
+          const stat = await fs.stat(filePath).catch(() => null);
+          if (!stat?.isFile() || stat.size !== Number(item.bytes)) return res.status(400).json({ ok: false, error: "uploaded_media_not_ready" });
+          files.push({ field: "media", filename: String(item.name || ("event." + ext)), contentType: mime, path: filePath, size: stat.size });
+        }
+        req.files = files;
+        const handlerPath = path.join(__dirname, "api", "admin", "events.js");
+        const handler = await import(pathToFileURL(handlerPath).href);
+        if (typeof handler.default !== "function") throw new Error("invalid_event_handler");
+        await handler.default(req, res);
+      } catch (error) {
+        console.error("Chunked event upload failed:", error?.code || error?.name || "Error");
+        if (!res.headersSent) return res.status(500).json({ ok: false, error: "event_upload_failed" });
+      }
+    });
+  }
+
   eventDiskUpload.any()(req, res, async error => {
     const cleanup = () => Promise.all((req.files || []).map(file =>
       file.path ? fs.rm(file.path, { force: true }).catch(() => {}) : Promise.resolve()
