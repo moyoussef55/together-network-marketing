@@ -66,13 +66,13 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
     SELECT pos.account_position,
            COALESCE(b.total_right,0)::bigint AS total_right,
            COALESCE(b.total_left,0)::bigint AS total_left,
-           COALESCE(b.carry_right,0)::bigint
+           COALESCE((SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_right,0))::bigint
              + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                   WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='right'
                     AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
                         WHERE s.member_id=$1 AND s.account_position=pos.account_position),
                       ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_right,
-           COALESCE(b.carry_left,0)::bigint
+           COALESCE((SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_left,0))::bigint
              + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                   WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='left'
                     AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
