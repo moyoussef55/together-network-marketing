@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: namecheap-polling-optimization
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   optimize:
@@ -55,27 +55,31 @@ jobs:
             "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE_BASH'
           set -euo pipefail
           RUN_ID="$1"
-          NODE_BIN="$(command -v node || true)"
-          if [ -z "$NODE_BIN" ]; then
-            NODE_BIN="$(find /home/togeiign/nodevenv -path '*/bin/node' -executable -print -quit 2>/dev/null || true)"
+          PERL_BIN="$(command -v perl || true)"
+          if [ -z "$PERL_BIN" ]; then
+            for CANDIDATE in /usr/bin/perl /usr/local/bin/perl /usr/local/cpanel/3rdparty/perl/536/bin/perl /usr/local/cpanel/3rdparty/perl/532/bin/perl; do
+              if [ -x "$CANDIDATE" ]; then PERL_BIN="$CANDIDATE"; break; fi
+            done
           fi
-          if [ -z "$NODE_BIN" ]; then
-            NODE_BIN="$(find /home/togeiign -path '*/bin/node' -executable -print -quit 2>/dev/null || true)"
-          fi
-          if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
-            echo "No executable Node.js binary was found; no files were changed." >&2
+          if [ -z "$PERL_BIN" ] || [ ! -x "$PERL_BIN" ]; then
+            echo "No Perl interpreter found; no files were changed." >&2
             exit 127
           fi
-          echo "REMOTE_NODE_BINARY=$NODE_BIN"
-          "$NODE_BIN" - "$RUN_ID" <<'REMOTE_NODE'
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const crypto = require("node:crypto");
-          const root = "/home/togeiign/marketing-network";
-          const runId = String(process.argv[2] || "");
-          if (!/^[0-9]+$/.test(runId)) throw new Error("Invalid run ID");
-          const plan = {
-            "public/admin/index.html": [
+          echo "REMOTE_PERL_BINARY=$PERL_BIN"
+          "$PERL_BIN" - "$RUN_ID" <<'REMOTE_PERL'
+          use strict;
+          use warnings;
+          use File::Copy qw(copy);
+          use File::Basename qw(dirname basename);
+          use Digest::SHA qw(sha256_hex);
+
+          my $root = "/home/togeiign/marketing-network";
+          my $run_id = shift @ARGV // "";
+          die "Invalid run ID\n" unless $run_id =~ /^[0-9]+$/;
+          die "Project root is not a real directory\n" unless -d $root && !-l $root;
+
+          my %plan = (
+            "public/admin/index.html" => [
               ["loadAutomaticUpdateStatus();setInterval(loadAutomaticUpdateStatus,30000);",
                "loadAutomaticUpdateStatus();setInterval(()=>{if(!document.hidden)loadAutomaticUpdateStatus()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadAutomaticUpdateStatus()});"],
               ["updateSupportBadge();setInterval(updateSupportBadge,8000);",
@@ -83,112 +87,141 @@ jobs:
               ["checkNotice();setInterval(checkNotice,30000);",
                "checkNotice();setInterval(()=>{if(!document.hidden)checkNotice()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotice()});"]
             ],
-            "public/admin/recognitions/index.html": [
+            "public/admin/recognitions/index.html" => [
               ["setInterval(refreshActivity,15000);",
                "setInterval(()=>{if(!document.hidden)refreshActivity()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshActivity()});"]
             ],
-            "public/admin/support-chat/index.html": [
+            "public/admin/support-chat/index.html" => [
               ["setInterval(()=>load().catch(()=>{}),8000);",
                "setInterval(()=>{if(!document.hidden)load().catch(()=>{})},8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load().catch(()=>{})});"]
             ],
-            "public/marketer/dashboard/index.html": [
+            "public/marketer/dashboard/index.html" => [
               ["setInterval(loadRecognitionNotificationCount,15000);",
                "setInterval(()=>{if(!document.hidden)loadRecognitionNotificationCount()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadRecognitionNotificationCount()});"],
               ["setInterval(loadMessageCount,15000);",
                "setInterval(()=>{if(!document.hidden)loadMessageCount()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMessageCount()});"]
             ],
-            "public/marketer/support/index.html": [
+            "public/marketer/support/index.html" => [
               ["setInterval(()=>load().catch(()=>{}),8000);",
                "setInterval(()=>{if(!document.hidden)load().catch(()=>{})},8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load().catch(()=>{})});"]
             ]
-          };
-          function count(haystack, needle) {
-            return haystack.split(needle).length - 1;
+          );
+
+          sub occurrences {
+            my ($text, $needle) = @_;
+            my $n = () = $text =~ /\Q$needle\E/g;
+            return $n;
           }
-          const changes = [];
-          const outputs = {};
-          for (const [rel, replacements] of Object.entries(plan)) {
-            const full = path.join(root, rel);
-            let cur = fs.readFileSync(full, "utf8");
-            const st = fs.lstatSync(full);
-            if (!st.isFile() || st.isSymbolicLink()) throw new Error("Unsafe target: " + rel);
-            let changed = false;
-            for (const pair of replacements) {
-              const oldText = pair[0];
-              const newText = pair[1];
-              const oldCount = count(cur, oldText);
-              const newCount = count(cur, newText);
-              if (oldCount === 1 && newCount === 0) {
-                cur = cur.replace(oldText, newText);
-                changed = true;
-              } else if (oldCount === 0 && newCount === 1) {
-                // Idempotent retry: this exact timer is already protected.
+          my (%out, @changed);
+          for my $rel (sort keys %plan) {
+            my $full = "$root/$rel";
+            die "Unsafe target path: $rel\n" if -l $full || !-f $full;
+            my @parts = split m{/}, $rel;
+            pop @parts;
+            my $curdir = $root;
+            for my $part (@parts) {
+              $curdir .= "/$part";
+              die "Symlink directory refused: $curdir\n" if -l $curdir;
+              die "Directory missing: $curdir\n" unless -d $curdir;
+            }
+            open my $fh, "<:raw", $full or die "Cannot read $rel: $!\n";
+            local $/;
+            my $original = <$fh>;
+            close $fh;
+            my $current = $original;
+            my @st = stat($full);
+            my $mode = $st[2] & 07777;
+            my $mtime = $st[9];
+            for my $pair (@{$plan{$rel}}) {
+              my ($old, $new) = @$pair;
+              my $old_n = occurrences($current, $old);
+              my $new_n = occurrences($current, $new);
+              if ($old_n == 1 && $new_n == 0) {
+                my $idx = index($current, $old);
+                $current = substr($current, 0, $idx) . $new . substr($current, $idx + length($old));
+              } elsif ($old_n == 0 && $new_n == 1) {
+                # Safe retry: this exact change is already present.
               } else {
-                throw new Error("Preflight stopped without editing files: " + rel +
-                  " old-pattern-count=" + oldCount + " new-pattern-count=" + newCount);
+                die "Preflight stopped without editing any file: $rel old-count=$old_n new-count=$new_n\n";
               }
             }
-            for (const pair of replacements) {
-              if (count(cur, pair[1]) !== 1 || count(cur, pair[0]) !== 0) {
-                throw new Error("Post-patch validation failed for " + rel);
-              }
+            for my $pair (@{$plan{$rel}}) {
+              die "Patch verification failed: $rel\n"
+                unless occurrences($current, $pair->[1]) == 1 && occurrences($current, $pair->[0]) == 0;
             }
-            outputs[rel] = { full: full, content: cur, mode: st.mode, mtime: st.mtime, changed: changed };
-            if (changed) changes.push(rel);
+            $out{$rel} = { full => $full, original => $original, content => $current, mode => $mode, mtime => $mtime };
+            push @changed, $rel if $current ne $original;
           }
-          if (changes.length === 0) {
-            console.log("POLLING_ALREADY_OPTIMIZED");
-            for (const rel of Object.keys(plan)) {
-              console.log("LIVE_SHA256 " + rel + " " + crypto.createHash("sha256").update(outputs[rel].content).digest("hex"));
-            }
+
+          if (!@changed) {
+            print "POLLING_ALREADY_OPTIMIZED\n";
           } else {
-            const backups = [];
-            const temps = [];
-            try {
-              // Create and verify all backups before installing any changed file.
-              for (const rel of changes) {
-                const item = outputs[rel];
-                const backup = item.full + ".BACKUP-before-background-polling-" + runId;
-                const temp = path.join(path.dirname(item.full), "." + path.basename(item.full) + ".incoming-" + runId);
-                if (fs.existsSync(backup) || fs.existsSync(temp)) throw new Error("Backup/temp already exists for " + rel);
-                fs.copyFileSync(item.full, backup, fs.constants.COPYFILE_EXCL);
-                fs.chmodSync(backup, item.mode);
-                if (fs.readFileSync(backup, "utf8") !== fs.readFileSync(item.full, "utf8")) throw new Error("Backup verification failed: " + rel);
-                backups.push({ rel: rel, target: item.full, backup: backup, mode: item.mode, mtime: item.mtime });
-                fs.writeFileSync(temp, item.content, { mode: item.mode, flag: "wx" });
-                fs.chmodSync(temp, item.mode);
-                if (fs.readFileSync(temp, "utf8") !== item.content) throw new Error("Incoming verification failed: " + rel);
-                temps.push({ rel: rel, target: item.full, temp: temp });
+            my (@backups, @temps);
+            eval {
+              for my $rel (@changed) {
+                my $item = $out{$rel};
+                my $backup = $item->{full} . ".BACKUP-before-background-polling-" . $run_id;
+                my $temp = dirname($item->{full}) . "/." . basename($item->{full}) . ".incoming-" . $run_id;
+                die "Backup already exists: $backup\n" if -e $backup;
+                die "Incoming file already exists: $temp\n" if -e $temp;
+                copy($item->{full}, $backup) or die "Backup failed for $rel: $!\n";
+                chmod($item->{mode}, $backup) or die "Backup chmod failed for $rel: $!\n";
+                open my $check, "<:raw", $backup or die "Cannot verify backup for $rel: $!\n";
+                local $/;
+                my $backup_bytes = <$check>;
+                close $check;
+                die "Backup verification failed for $rel\n" unless $backup_bytes eq $item->{original};
+                push @backups, { rel => $rel, target => $item->{full}, backup => $backup, mode => $item->{mode}, mtime => $item->{mtime} };
+                sysopen(my $out_fh, $temp, 0x0001 | 0x0040 | 0x0080, $item->{mode}) or die "Cannot create incoming file for $rel: $!\n";
+                binmode($out_fh);
+                print {$out_fh} $item->{content} or die "Cannot write incoming file for $rel: $!\n";
+                close($out_fh) or die "Cannot close incoming file for $rel: $!\n";
+                chmod($item->{mode}, $temp) or die "Incoming chmod failed for $rel: $!\n";
+                open my $verify, "<:raw", $temp or die "Cannot read incoming file for $rel: $!\n";
+                local $/;
+                my $incoming_bytes = <$verify>;
+                close $verify;
+                die "Incoming verification failed for $rel\n" unless $incoming_bytes eq $item->{content};
+                push @temps, { rel => $rel, target => $item->{full}, temp => $temp };
               }
-              for (const item of temps) fs.renameSync(item.temp, item.target);
-              for (const rel of changes) {
-                if (fs.readFileSync(outputs[rel].full, "utf8") !== outputs[rel].content) throw new Error("Installed file verification failed: " + rel);
+              for my $item (@temps) {
+                rename($item->{temp}, $item->{target}) or die "Atomic install failed for $item->{rel}: $!\n";
               }
-            } catch (err) {
-              for (const b of backups) {
-                try {
-                  fs.copyFileSync(b.backup, b.target);
-                  fs.chmodSync(b.target, b.mode);
-                  fs.utimesSync(b.target, b.mtime, b.mtime);
-                } catch (restoreErr) {
-                  console.error("ROLLBACK_FAILED " + b.rel + " " + restoreErr.message);
+              for my $rel (@changed) {
+                open my $verify, "<:raw", $out{$rel}->{full} or die "Cannot verify installed file $rel: $!\n";
+                local $/;
+                my $installed = <$verify>;
+                close $verify;
+                die "Installed verification failed for $rel\n" unless $installed eq $out{$rel}->{content};
+              }
+              1;
+            } or do {
+              my $error = $@ || "Unknown install failure\n";
+              for my $b (@backups) {
+                if (copy($b->{backup}, $b->{target})) {
+                  chmod($b->{mode}, $b->{target});
+                  utime($b->{mtime}, $b->{mtime}, $b->{target});
+                } else {
+                  print STDERR "ROLLBACK_FAILED " . $b->{rel} . "\n";
                 }
               }
-              for (const t of temps) {
-                try { if (fs.existsSync(t.temp)) fs.unlinkSync(t.temp); } catch (_) {}
-              }
-              throw err;
-            }
-            console.log("LIVE_POLLING_PATCHES_INSTALLED");
-            for (const rel of Object.keys(plan)) {
-              const full = outputs[rel].full;
-              const hash = crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex");
-              console.log("LIVE_SHA256 " + rel + " " + hash);
-              if (outputs[rel].changed) console.log("BACKUP_CREATED " + full + ".BACKUP-before-background-polling-" + runId);
+              for my $t (@temps) { unlink($t->{temp}) if -e $t->{temp}; }
+              die $error;
+            };
+            print "LIVE_POLLING_PATCHES_INSTALLED\n";
+            for my $rel (@changed) {
+              print "BACKUP_CREATED " . $out{$rel}->{full} . ".BACKUP-before-background-polling-" . $run_id . "\n";
             }
           }
-          console.log("NAMECHEAP_POLLING_OPTIMIZATION_OK");
-          REMOTE_NODE
+          for my $rel (sort keys %plan) {
+            open my $fh, "<:raw", $out{$rel}->{full} or die "Cannot hash $rel: $!\n";
+            local $/;
+            my $bytes = <$fh>;
+            close $fh;
+            print "LIVE_SHA256 $rel " . sha256_hex($bytes) . "\n";
+          }
+          print "NAMECHEAP_POLLING_OPTIMIZATION_OK\n";
+          REMOTE_PERL
           REMOTE_BASH
 
       - name: Copy the verified live pages back into the repository workspace
