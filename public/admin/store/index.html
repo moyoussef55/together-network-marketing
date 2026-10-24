@@ -1,4 +1,4 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>متجر Together — الإدارة</title><link rel="stylesheet" href="/theme.css"><style>
+<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>متجر Together — الإدارة</title><link rel="stylesheet" href="/theme.css?v=620"><style>
 .wrap{max-width:1100px;margin:0 auto}.topbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:18px}.actions{display:flex;gap:8px;flex-wrap:wrap}.table{width:100%;border-collapse:collapse}.table th,.table td{padding:10px;border-bottom:1px solid #ffffff18;text-align:right}.pill{display:inline-block;padding:5px 9px;border-radius:999px;background:#ffffff12}.on{background:#173f2b;color:#8df0b4}.off{background:#4a1d22;color:#ff9da7}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}@media(max-width:800px){.grid2{grid-template-columns:1fr}.table{font-size:13px;display:block;overflow:auto;white-space:nowrap}}.mini-form{display:flex;gap:8px}.mini-form input{flex:1}
 /* Light mode: improve visibility status contrast in the products table. */
 body[data-theme="light"] .table th{background:#eee3d5!important;color:#33251c!important}
@@ -22,4 +22,4 @@ async function toggleProduct(id){try{await post({action:'toggle_product',product
 async function deleteProduct(id){if(!confirm('هل أنت متأكد من حذف المنتج؟ سيتم حذف صوره أيضًا ولا يمكن التراجع عن ذلك.'))return;try{await post({action:'delete_product',product_id:id});await load()}catch(e){alert(e.message)}}
 async function toggleCat(id){try{await post({action:'toggle_category',category_id:id});await load()}catch(e){alert(e.message)}}
 load();
-</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=600"></script></body></html>
+</script></main><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=620"></script></body></html>
