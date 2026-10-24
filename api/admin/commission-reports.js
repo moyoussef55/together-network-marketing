@@ -12,6 +12,66 @@ export default async function handler(req, res) {
   const limit = 20;
   const offset = (page - 1) * limit;
 
+  if(action==="update_runs"){
+    const runs=await db.query(`
+      SELECT r.id,r.update_at,r.update_type,r.week_start,r.week_end,
+             r.allocated_rows,r.accounts_count,r.check_rows,r.check_rate,
+             r.direct_commissions_released,r.cheque_marketers,
+             r.total_cheque_amount,r.report_rows
+        FROM network_bv_update_runs r
+       ORDER BY r.update_at DESC
+       LIMIT 100
+    `);
+    return res.json({ok:true,action,runs:runs.rows});
+  }
+
+  if(action==="update_report"){
+    const runId=String(req.query?.run_id||"").trim();
+    if(!runId)return res.status(400).json({ok:false,error:"missing_update_run"});
+    const runResult=await db.query(`
+      SELECT id,update_at,update_type,week_start,week_end,allocated_rows,
+             accounts_count,check_rows,check_rate,direct_commissions_released,
+             cheque_marketers,total_cheque_amount,report_rows
+        FROM network_bv_update_runs
+       WHERE id::text=$1
+       LIMIT 1
+    `,[runId]);
+    if(!runResult.rows.length)return res.status(404).json({ok:false,error:"update_report_not_found"});
+    const params=[runId];
+    let search="";
+    if(q){
+      params.push("%"+q.toLowerCase()+"%");
+      search=" AND (lower(COALESCE(p.display_name,'')) LIKE $2 OR lower(COALESCE(p.referral_code,'')) LIKE $2 OR lower(p.id::text) LIKE $2)";
+    }
+    const base=`
+      SELECT p.id,p.referral_code,
+             COALESCE(NULLIF(p.display_name,''),concat_ws(' ',p.first_name,p.second_name,p.third_name,p.fourth_name),'مسوق') AS name,
+             SUM(rr.check_amount)::numeric AS check_amount,
+             FLOOR(SUM(rr.check_amount)/1500)::int AS check_count,
+             JSON_AGG(JSON_BUILD_OBJECT(
+               'account_position',rr.account_position,
+               'right_bv_before',rr.right_bv_before,
+               'left_bv_before',rr.left_bv_before,
+               'matched_bv',rr.matched_bv,
+               'carry_right_after',rr.carry_right_after,
+               'carry_left_after',rr.carry_left_after,
+               'check_amount',rr.check_amount
+             ) ORDER BY rr.account_position) AS positions_detail,
+             STRING_AGG(rr.account_position::text,', ' ORDER BY rr.account_position) AS positions
+        FROM network_bv_update_report_rows rr
+        JOIN app_profiles p ON p.id::text=rr.member_id
+       WHERE rr.update_run_id=$1 AND p.deleted_at IS NULL ${search}
+       GROUP BY p.id,p.referral_code,p.display_name,p.first_name,p.second_name,p.third_name,p.fourth_name
+      `;
+    const count=await db.query("SELECT COUNT(*)::int AS total FROM ("+base+") report_rows",params);
+    const rows=await db.query("SELECT * FROM ("+base+") report_rows ORDER BY check_amount DESC,name ASC LIMIT "+limit+" OFFSET "+offset,params);
+    return res.json({
+      ok:true,action,run:runResult.rows[0],
+      total:Number(count.rows[0]?.total||0),page,page_size:limit,
+      pages:Math.ceil(Number(count.rows[0]?.total||0)/limit),rows:rows.rows
+    });
+  }
+
   if (action === "checks") {
     const picked = String(req.query?.date || "").trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(picked)) {
