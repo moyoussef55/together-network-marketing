@@ -54,10 +54,8 @@ jobs:
           checkbox = '<label class="remember-row" for="rememberMe" style="display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-size:14px;cursor:pointer"><input id="rememberMe" type="checkbox" style="width:16px;height:16px;accent-color:#60a5fa"><span>تذكرني</span></label>'
           submit = '<button class="btn primary" id="submit" type="submit">تسجيل الدخول</button></form>'
           assert data["admin"].count(submit) == 1
-          old_admin_payload = 'body:JSON.stringify({email:$("#email").value,password:$("#password").value,setupKey})'
-          new_admin_payload = 'body:JSON.stringify({email:$("#email").value,password:$("#password").value,rememberMe:$("#rememberMe")?.checked===true,setupKey})'
-          old_admin_payload = 'body:JSON.stringify({email: $("email").value,password: $("password").value,setupKey})' if old_admin_payload not in data["admin"] else old_admin_payload
-          new_admin_payload = 'body:JSON.stringify({email: $("email").value,password: $("password").value,rememberMe:$("rememberMe")?.checked===true,setupKey})' if old_admin_payload.startswith('body:JSON.stringify({email: $("email")') else new_admin_payload
+          old_admin_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,setupKey})'
+          new_admin_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,rememberMe:$("rememberMe")?.checked===true,setupKey})'
           assert data["admin"].count(old_admin_payload) == 1
           data["admin"] = data["admin"].replace(submit, checkbox + submit, 1)
           data["admin"] = data["admin"].replace(old_admin_payload, new_admin_payload, 1)
