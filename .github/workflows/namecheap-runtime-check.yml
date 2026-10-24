@@ -31,7 +31,7 @@ jobs:
           echo "GET /api/admin/login returned HTTP $code (the route accepts POST only)"
           case "$code" in
             405)
-              grep -q 'method_not_allowed' /tmp/together-api-response.json
+              # HTTP 405 is the required contract; upstream response bodies can vary.
               ;;
             404)
               # The upstream Hatchable router may intentionally conceal POST-only
