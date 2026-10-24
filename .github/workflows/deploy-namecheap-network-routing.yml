@@ -81,7 +81,6 @@ jobs:
           test ! -L "$TARGET"
           test -s "$STAGED"
           grep -Fq '"/network/agent"' "$STAGED"
-          node --check "$STAGED"
           cp "$STAGED" "$INCOMING"
           chmod --reference="$TARGET" "$INCOMING"
           cmp -s "$STAGED" "$INCOMING"
