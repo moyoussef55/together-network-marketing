@@ -1,0 +1,110 @@
+name: Deploy event video streaming runtime to Namecheap
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "server.js"
+      - ".github/workflows/deploy-namecheap-event-upload-runtime.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-event-upload-runtime
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the exact revision
+        uses: actions/checkout@v4
+
+      - name: Validate the runtime before touching production
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check runtime syntax and upload handler
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm run check
+          node --check server.js
+          grep -Fq 'x-event-upload-mode' server.js
+          grep -Fq 'finalize_media' server.js
+          sha256sum server.js
+
+      - name: Pin the verified Namecheap SSH host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+
+      - name: Load the Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Transfer runtime to a protected temporary file
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          REMOTE_TMP="/home/togeiign/.server.js.event-upload-$RUN_ID"
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '$REMOTE_TMP'" < server.js
+          echo "RUNTIME_STAGED=$REMOTE_TMP"
+
+      - name: Back up, atomically install, and restart the Namecheap runtime
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          TARGET="$ROOT/server.js"
+          STAGED="/home/togeiign/.server.js.event-upload-$RUN_ID"
+          INCOMING="$ROOT/.server.js.incoming-$RUN_ID"
+          test -d "$ROOT"
+          test -f "$TARGET"
+          test ! -L "$TARGET"
+          test -s "$STAGED"
+          grep -Fq 'x-event-upload-mode' "$STAGED"
+          cp "$STAGED" "$INCOMING"
+          chmod --reference="$TARGET" "$INCOMING"
+          cmp -s "$STAGED" "$INCOMING"
+          BACKUP="$TARGET.BACKUP-before-event-upload-$(date +%Y%m%d-%H%M%S)"
+          cp -p "$TARGET" "$BACKUP"
+          if ! mv -f "$INCOMING" "$TARGET"; then
+            cp -p "$BACKUP" "$TARGET"
+            exit 1
+          fi
+          if ! cmp -s "$STAGED" "$TARGET"; then
+            cp -p "$BACKUP" "$TARGET"
+            echo "VERIFY_FAILED; restored backup: $BACKUP" >&2
+            exit 1
+          fi
+          mkdir -p "$ROOT/tmp"
+          touch "$ROOT/tmp/restart.txt"
+          sha256sum "$TARGET"
+          echo "BACKUP_CREATED=$BACKUP"
+          echo "NAMECHEAP_EVENT_UPLOAD_RUNTIME_DEPLOY_OK"
+          rm -f "$STAGED" "$INCOMING"
+          REMOTE
