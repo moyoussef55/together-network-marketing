@@ -190,7 +190,7 @@ app.use("/api", upload.any(), async (req, res) => {
   // depend on a database/runtime package just to return a correct 405 response.
   try {
     const handlerSource = await fs.readFile(target, "utf8");
-    const methodDeclaration = handlerSource.match(/export\\s+const\\s+methods\\s*=\\s*\\[([^\\]]*)\\]\\s*;/);
+    const methodDeclaration = handlerSource.match(/export\s+const\s+methods\s*=\s*\[([^\]]*)\]\s*;/);
     if (methodDeclaration) {
       const allowedMethods = [...methodDeclaration[1].matchAll(/["']([A-Z]+)["']/g)].map(match => match[1]);
       if (allowedMethods.length && !allowedMethods.includes(req.method)) {
