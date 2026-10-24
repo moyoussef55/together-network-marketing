@@ -57,10 +57,10 @@ jobs:
           RUN_ID="$1"
           NODE_BIN="$(command -v node || true)"
           if [ -z "$NODE_BIN" ]; then
-            NODE_BIN="$(find /home/togeiign/nodevenv -path '*/bin/node' -type f -print -quit 2>/dev/null || true)"
+            NODE_BIN="$(find /home/togeiign/nodevenv -path '*/bin/node' -executable -print -quit 2>/dev/null || true)"
           fi
           if [ -z "$NODE_BIN" ]; then
-            NODE_BIN="$(find /home/togeiign -path '*/bin/node' -type f -print -quit 2>/dev/null || true)"
+            NODE_BIN="$(find /home/togeiign -path '*/bin/node' -executable -print -quit 2>/dev/null || true)"
           fi
           if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
             echo "No executable Node.js binary was found; no files were changed." >&2
