@@ -65,3 +65,5 @@ jobs:
           ps -eo user=,comm= 2>/dev/null | grep -Ei 'node|passenger|npm' | sort | uniq -c | head -n 20 || true
           echo "=== DIAGNOSTIC COMPLETE; no files changed, no restart requested ==="
           REMOTE
+
+# Read-only diagnostic trigger after the verified Hatchable API sync on 2026-10-24.
