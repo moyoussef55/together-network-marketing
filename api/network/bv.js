@@ -71,8 +71,10 @@ export default async function handler(req,res){
   // weekly settlement job; that job then persists the remainder as the next carry.
   const carryView=await db.query(`
     WITH last_settlement AS (
-      SELECT MAX(settled_at) AS settled_at
-        FROM network_bv_settlements WHERE member_id=$1 AND account_position=$2
+      SELECT settled_at,carry_right,carry_left
+        FROM network_bv_settlements
+       WHERE member_id=$1 AND account_position=$2
+       ORDER BY settled_at DESC LIMIT 1
     ), cycle_start AS (
       SELECT COALESCE(
         (SELECT settled_at FROM last_settlement),
@@ -84,12 +86,13 @@ export default async function handler(req,res){
         FROM network_bv_ledger,cycle_start
        WHERE upline_member_id=$1 AND account_position=$2 AND sale_at > cycle_start.start_at
     )
-    SELECT right_bv,left_bv
+    SELECT COALESCE((SELECT carry_right FROM last_settlement),$3::bigint,0)+right_bv AS right_bv,
+           COALESCE((SELECT carry_left FROM last_settlement),$4::bigint,0)+left_bv AS left_bv
       FROM period_bv
-  `,[requested,position]);
+  `,[requested,position,Number(b.carry_right||0),Number(b.carry_left||0)]);
   if(carryView.rows[0]){
-    b.carry_right=Number(b.carry_right||0)+Number(carryView.rows[0].right_bv||0);
-    b.carry_left=Number(b.carry_left||0)+Number(carryView.rows[0].left_bv||0);
+    b.carry_right=Number(carryView.rows[0].right_bv||0);
+    b.carry_left=Number(carryView.rows[0].left_bv||0);
   }
 
   const checks=await db.query(`SELECT id,week_start,week_end,right_bv,left_bv,matched_bv,check_amount,carry_right,carry_left,settled_at
