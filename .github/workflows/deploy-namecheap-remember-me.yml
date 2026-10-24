@@ -48,8 +48,8 @@ jobs:
           assert "rememberMe" not in admin, "Admin source already contains a remember-me implementation; refusing duplicate insertion"
           checkbox = '<label class="remember-row" for="rememberMe" style="display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-size:14px;cursor:pointer"><input id="rememberMe" type="checkbox" style="width:16px;height:16px;accent-color:#60a5fa"><span>تذكرني</span></label>'
           submit = '<button class="btn primary" id="submit" type="submit">تسجيل الدخول</button></form>'
-          old_payload = 'body:JSON.stringify({email:$("#email").value,password:$("#password").value,setupKey})'
-          new_payload = 'body:JSON.stringify({email:$("#email").value,password:$("#password").value,rememberMe:$("#rememberMe")?.checked===true,setupKey})'
+          old_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,setupKey})'
+          new_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,rememberMe:$("rememberMe")?.checked===true,setupKey})'
           assert admin.count(submit) == 1, "Unexpected admin login form; refusing to patch"
           assert admin.count(old_payload) == 1, "Unexpected admin login request; refusing to patch"
           admin = admin.replace(submit, checkbox + submit, 1)
@@ -60,7 +60,7 @@ jobs:
           assert login.count('id="rememberMe"') == 1
           assert admin.count('id="rememberMe"') == 1
           assert '<span>تذكرني</span>' in admin
-          assert 'rememberMe:$("#rememberMe")?.checked===true' in admin
+          assert 'rememberMe:$("rememberMe")?.checked===true' in admin
 
           login_path.write_text(login, encoding="utf-8")
           admin_path.write_text(admin, encoding="utf-8")
@@ -150,7 +150,7 @@ jobs:
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' "$STAGE/$LOGIN_REL"
           grep -Fq 'textContent=lang==="ar"?"تذكرني":"Remember me";' "$STAGE/$LOGIN_REL"
           grep -Fq '<span>تذكرني</span>' "$STAGE/$ADMIN_REL"
-          grep -Fq 'rememberMe:$("#rememberMe")?.checked===true' "$STAGE/$ADMIN_REL"
+          grep -Fq 'rememberMe:$("rememberMe")?.checked===true' "$STAGE/$ADMIN_REL"
 
           STAMP="$(date +%Y%m%d-%H%M%S)"
           LOGIN_BACKUP="$LOGIN.BACKUP-before-remember-me-$STAMP-$RUN_ID"
