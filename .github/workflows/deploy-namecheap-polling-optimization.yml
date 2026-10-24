@@ -1,0 +1,230 @@
+name: Safely reduce inactive-tab polling on Namecheap
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - ".github/workflows/deploy-namecheap-polling-optimization.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: namecheap-polling-optimization
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out the current deployment branch
+        uses: actions/checkout@v4
+
+      - name: Pin the verified Namecheap host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+
+      - name: Load the Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: \${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Patch only background polling on the live site
+        shell: bash
+        env:
+          HOST: \${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: \${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: \${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: \${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -T \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" "node - '$RUN_ID'" <<'REMOTE_NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const crypto = require("node:crypto");
+          const root = "/home/togeiign/marketing-network";
+          const runId = String(process.argv[2] || "");
+          if (!/^[0-9]+$/.test(runId)) throw new Error("Invalid run ID");
+          const plan = {
+            "public/admin/index.html": [
+              ["loadAutomaticUpdateStatus();setInterval(loadAutomaticUpdateStatus,30000);",
+               "loadAutomaticUpdateStatus();setInterval(()=>{if(!document.hidden)loadAutomaticUpdateStatus()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadAutomaticUpdateStatus()});"],
+              ["updateSupportBadge();setInterval(updateSupportBadge,8000);",
+               "updateSupportBadge();setInterval(()=>{if(!document.hidden)updateSupportBadge()},8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)updateSupportBadge()});"],
+              ["checkNotice();setInterval(checkNotice,30000);",
+               "checkNotice();setInterval(()=>{if(!document.hidden)checkNotice()},30000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkNotice()});"]
+            ],
+            "public/admin/recognitions/index.html": [
+              ["setInterval(refreshActivity,15000);",
+               "setInterval(()=>{if(!document.hidden)refreshActivity()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)refreshActivity()});"]
+            ],
+            "public/admin/support-chat/index.html": [
+              ["setInterval(()=>load().catch(()=>{}),8000);",
+               "setInterval(()=>{if(!document.hidden)load().catch(()=>{})},8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load().catch(()=>{})});"]
+            ],
+            "public/marketer/dashboard/index.html": [
+              ["setInterval(loadRecognitionNotificationCount,15000);",
+               "setInterval(()=>{if(!document.hidden)loadRecognitionNotificationCount()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadRecognitionNotificationCount()});"],
+              ["setInterval(loadMessageCount,15000);",
+               "setInterval(()=>{if(!document.hidden)loadMessageCount()},15000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadMessageCount()});"]
+            ],
+            "public/marketer/support/index.html": [
+              ["setInterval(()=>load().catch(()=>{}),8000);",
+               "setInterval(()=>{if(!document.hidden)load().catch(()=>{})},8000);document.addEventListener('visibilitychange',()=>{if(!document.hidden)load().catch(()=>{})});"]
+            ]
+          };
+          function count(haystack, needle) {
+            return haystack.split(needle).length - 1;
+          }
+          const changes = [];
+          const outputs = {};
+          for (const [rel, replacements] of Object.entries(plan)) {
+            const full = path.join(root, rel);
+            let cur = fs.readFileSync(full, "utf8");
+            const st = fs.lstatSync(full);
+            if (!st.isFile() || st.isSymbolicLink()) throw new Error("Unsafe target: " + rel);
+            let changed = false;
+            for (const pair of replacements) {
+              const oldText = pair[0];
+              const newText = pair[1];
+              const oldCount = count(cur, oldText);
+              const newCount = count(cur, newText);
+              if (oldCount === 1 && newCount === 0) {
+                cur = cur.replace(oldText, newText);
+                changed = true;
+              } else if (oldCount === 0 && newCount === 1) {
+                // Idempotent retry: this exact timer is already protected.
+              } else {
+                throw new Error("Preflight stopped without editing files: " + rel +
+                  " old-pattern-count=" + oldCount + " new-pattern-count=" + newCount);
+              }
+            }
+            for (const pair of replacements) {
+              if (count(cur, pair[1]) !== 1 || count(cur, pair[0]) !== 0) {
+                throw new Error("Post-patch validation failed for " + rel);
+              }
+            }
+            outputs[rel] = { full: full, content: cur, mode: st.mode, mtime: st.mtime, changed: changed };
+            if (changed) changes.push(rel);
+          }
+          if (changes.length === 0) {
+            console.log("POLLING_ALREADY_OPTIMIZED");
+            for (const rel of Object.keys(plan)) {
+              console.log("LIVE_SHA256 " + rel + " " + crypto.createHash("sha256").update(outputs[rel].content).digest("hex"));
+            }
+          } else {
+            const backups = [];
+            const temps = [];
+            try {
+              // Create and verify all backups before installing any changed file.
+              for (const rel of changes) {
+                const item = outputs[rel];
+                const backup = item.full + ".BACKUP-before-background-polling-" + runId;
+                const temp = path.join(path.dirname(item.full), "." + path.basename(item.full) + ".incoming-" + runId);
+                if (fs.existsSync(backup) || fs.existsSync(temp)) throw new Error("Backup/temp already exists for " + rel);
+                fs.copyFileSync(item.full, backup, fs.constants.COPYFILE_EXCL);
+                fs.chmodSync(backup, item.mode);
+                if (fs.readFileSync(backup, "utf8") !== fs.readFileSync(item.full, "utf8")) throw new Error("Backup verification failed: " + rel);
+                backups.push({ rel: rel, target: item.full, backup: backup, mode: item.mode, mtime: item.mtime });
+                fs.writeFileSync(temp, item.content, { mode: item.mode, flag: "wx" });
+                fs.chmodSync(temp, item.mode);
+                if (fs.readFileSync(temp, "utf8") !== item.content) throw new Error("Incoming verification failed: " + rel);
+                temps.push({ rel: rel, target: item.full, temp: temp });
+              }
+              for (const item of temps) fs.renameSync(item.temp, item.target);
+              for (const rel of changes) {
+                if (fs.readFileSync(outputs[rel].full, "utf8") !== outputs[rel].content) throw new Error("Installed file verification failed: " + rel);
+              }
+            } catch (err) {
+              for (const b of backups) {
+                try {
+                  fs.copyFileSync(b.backup, b.target);
+                  fs.chmodSync(b.target, b.mode);
+                  fs.utimesSync(b.target, b.mtime, b.mtime);
+                } catch (restoreErr) {
+                  console.error("ROLLBACK_FAILED " + b.rel + " " + restoreErr.message);
+                }
+              }
+              for (const t of temps) {
+                try { if (fs.existsSync(t.temp)) fs.unlinkSync(t.temp); } catch (_) {}
+              }
+              throw err;
+            }
+            console.log("LIVE_POLLING_PATCHES_INSTALLED");
+            for (const rel of Object.keys(plan)) {
+              const full = outputs[rel].full;
+              const hash = crypto.createHash("sha256").update(fs.readFileSync(full)).digest("hex");
+              console.log("LIVE_SHA256 " + rel + " " + hash);
+              if (outputs[rel].changed) console.log("BACKUP_CREATED " + full + ".BACKUP-before-background-polling-" + runId);
+            }
+          }
+          console.log("NAMECHEAP_POLLING_OPTIMIZATION_OK");
+          REMOTE_NODE
+
+      - name: Copy the verified live pages back into the repository workspace
+        shell: bash
+        env:
+          HOST: \${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: \${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: \${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          FILES=(
+            "public/admin/index.html"
+            "public/admin/recognitions/index.html"
+            "public/admin/support-chat/index.html"
+            "public/marketer/dashboard/index.html"
+            "public/marketer/support/index.html"
+          )
+          mkdir -p "$RUNNER_TEMP/live-polling-snapshot"
+          ssh -T \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" \
+            "tar -czf - -C /home/togeiign/marketing-network \${FILES[*]}" \
+            | tar -xzf - -C "$RUNNER_TEMP/live-polling-snapshot"
+          for FILE in "\${FILES[@]}"; do
+            test -s "$RUNNER_TEMP/live-polling-snapshot/$FILE"
+            cp "$RUNNER_TEMP/live-polling-snapshot/$FILE" "$FILE"
+            echo "SOURCE_SYNCED_FROM_LIVE $FILE"
+            sha256sum "$FILE"
+          done
+
+      - name: Save the exact optimized pages in GitHub without triggering broad deployments
+        shell: bash
+        env:
+          GH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            public/admin/index.html \
+            public/admin/recognitions/index.html \
+            public/admin/support-chat/index.html \
+            public/marketer/dashboard/index.html \
+            public/marketer/support/index.html
+          if git diff --cached --quiet; then
+            echo "GITHUB_SOURCE_ALREADY_SYNCED"
+          else
+            git commit -m "Pause background polling outside visible pages [skip ci]"
+            git push origin HEAD:namecheap-runtime-prep
+            echo "GITHUB_SOURCE_SYNC_OK"
+          fi
