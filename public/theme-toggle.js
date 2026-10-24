@@ -2,7 +2,7 @@
   if(window.__togetherThemeToggleInstalled)return;window.__togetherThemeToggleInstalled=true;
   const key='together-network-theme';
   let saved='dark';try{saved=localStorage.getItem(key)||'dark'}catch(e){}
-  const alternateThemeLink=document.createElement('link');alternateThemeLink.rel='stylesheet';alternateThemeLink.href='/alternate-theme.css?v=600';(document.head||document.documentElement).appendChild(alternateThemeLink);
+  const alternateThemeLink=document.createElement('link');alternateThemeLink.rel='stylesheet';alternateThemeLink.href='/alternate-theme.css?v=620';(document.head||document.documentElement).appendChild(alternateThemeLink);
   const style=document.createElement('style');
   style.textContent=`
   body[data-theme="light"]{background:#f3f6fb!important;color:#182230!important}
