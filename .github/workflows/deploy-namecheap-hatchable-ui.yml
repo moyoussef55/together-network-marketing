@@ -134,7 +134,7 @@ jobs:
           grep -Fq 'tnInvoiceMarketerCode' public/store/product/index.html
           grep -Fq 'tnProductGalleryContrastFix' public/store/product/index.html
           grep -Fq 'tnProductLightModeFix' public/store/product/index.html
-          grep -Fq 'theme-toggle.js?v=600' public/store/product/index.html
+          grep -Fq 'theme-toggle.js?v=620' public/store/product/index.html
           grep -Fq 'theme-toggle.js' public/login.html
           grep -Fq '/api/homepage-settings' public/index.html
           grep -Fq '/api/seo-public' public/index.html
