@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>التقارير | Together Network</title>
-<link rel="stylesheet" href="/theme.css">
+<link rel="stylesheet" href="/theme.css?v=620">
 <style>
 :root{color-scheme:dark}
 body{background:radial-gradient(circle at 82% 0,#153a55 0,#07111f 42%,#050b14 100%)!important;color:var(--text,#f5f7fb)!important;min-height:100vh}
@@ -108,7 +108,7 @@ const dateOnly=v=>{if(!v)return "—";const d=new Date(v);return isNaN(d.getTime
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function parseArray(v){if(Array.isArray(v))return v;if(typeof v==="string"){try{const x=JSON.parse(v);return Array.isArray(x)?x:[]}catch{}}return []}
 function memberName(x){return x.name||x.marketer_name||x.display_name||x.full_name||x.referral_code||"مسوق"}
-function weekLabel(x){return "بداية الأسبوع "+dateOnly(x.week_start)+" — التحديث الفعلي "+dateOnly(x.update_at||x.settled_at||x.week_start)}
+function weekLabel(x){return "بداية الأسبوع "+dateOnly(x.week_start)+" — وقت نزول الابديت "+date(x.update_at||x.settled_at||x.week_start)}
 function bvDetailPlain(x,phase){const list=parseArray(x.positions_detail);if(!list.length)return phase==="before"?"يمين "+fmt(x.bv_right_before)+" / شمال "+fmt(x.bv_left_before):"يمين "+fmt(x.bv_right_after)+" / شمال "+fmt(x.bv_left_after);return list.map(p=>"توكيل "+p.account_position+": يمين "+fmt(phase==="before"?p.right_bv_before:p.carry_right_after)+" / شمال "+fmt(phase==="before"?p.left_bv_before:p.carry_left_after)).join("؛ ")}
 function bvDetailHtml(x,phase){const list=parseArray(x.positions_detail);if(!list.length)return '<div class="position-bv"><b>الإجمالي المعروض</b><span>يمين: '+fmt(phase==="before"?x.bv_right_before:x.bv_right_after)+'</span><span>شمال: '+fmt(phase==="before"?x.bv_left_before:x.bv_left_after)+'</span></div>';return list.map(p=>'<div class="position-bv"><b>توكيل '+esc(p.account_position)+'</b><span>يمين: '+fmt(phase==="before"?p.right_bv_before:p.carry_right_after)+'</span><span>شمال: '+fmt(phase==="before"?p.left_bv_before:p.carry_left_after)+'</span></div>').join("")}
 function safeStatus(s){return s||"—"}
@@ -301,5 +301,5 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("reportModal").cl
 $("checkDate").value=new Date().toISOString().slice(0,10);
 loadActive();
 </script>
-<script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=452"></script>
+<script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=620"></script>
 </body></html>
