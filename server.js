@@ -184,6 +184,25 @@ app.use("/api", upload.any(), async (req, res) => {
   req.files = (req.files || []).map(file => ({
     field: file.fieldname, filename: file.originalname, contentType: file.mimetype, buffer: file.buffer, size: file.size
   }));
+
+  // Reject unsupported HTTP methods before importing a handler. Some handlers
+  // import the Hatchable SDK at module load time, so method validation must not
+  // depend on a database/runtime package just to return a correct 405 response.
+  try {
+    const handlerSource = await fs.readFile(target, "utf8");
+    const methodDeclaration = handlerSource.match(/export\\s+const\\s+methods\\s*=\\s*\\[([^\\]]*)\\]\\s*;/);
+    if (methodDeclaration) {
+      const allowedMethods = [...methodDeclaration[1].matchAll(/["']([A-Z]+)["']/g)].map(match => match[1]);
+      if (allowedMethods.length && !allowedMethods.includes(req.method)) {
+        res.setHeader("Allow", allowedMethods.join(", "));
+        return res.status(405).json({ error: "method_not_allowed" });
+      }
+    }
+  } catch (error) {
+    console.error("API method precheck failed:", relative, error?.code || error?.name || "Error");
+    return res.status(500).json({ error: "internal_error" });
+  }
+
   try {
     const mod = await import(pathToFileURL(target).href);
     if (typeof mod.default !== "function") return res.status(500).json({ error: "invalid_api_handler" });
