@@ -43,6 +43,8 @@ export default async function(req,res){
   const referralCode="TO"+memberId.replaceAll("-","").slice(0,5).toLowerCase();
 
   await db.query("INSERT INTO app_profiles(id,role,referral_code,sponsor_id,display_name,phone,status,first_name,second_name,third_name,fourth_name,national_id,email,country,state,city,heir_name,heir_mother_name,login_password_hash,wallet_password_hash) VALUES($1,'marketer',$2,$3,$4,$5,'active',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)",[memberId,referralCode,referralId,fullName,x.phone,x.first_name,x.second_name,x.third_name,x.fourth_name,x.national_id,x.email,x.country,x.state,x.city,x.heir_name,x.heir_mother_name,x.password_hash,x.wallet_password_hash]);
+  // New confirmed agents enter active status now; this timestamp gates future BV.
+  await db.query("UPDATE app_profiles SET activation_started_at=COALESCE(activation_started_at,now()) WHERE id=$1 AND status='active'",[memberId]);
   const joinedResult=await db.query("UPDATE network_agent_applications SET status='joined',ibn_code=$1,ibn_amount=$2,ibn_expires_at=$3,joined_at=now(),member_id=$4 WHERE id=$5 RETURNING joined_at",[code,n.amount,n.expires_at,memberId,id]);
   await db.query("UPDATE network_ibns SET used_count=used_count+1,active=false,used_by_upline_id=$1,registered_agent_id=$2,used_at=now() WHERE id=$3",[ownerId,memberId,n.id]);
 
