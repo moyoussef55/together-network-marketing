@@ -106,7 +106,7 @@ jobs:
           grep -Fq '/api/admin/network' public/admin/network/index.html
           grep -Fq '/api/admin/recognitions' public/admin/recognitions/index.html
           grep -Fq '/api/admin/reports' public/admin/reports/index.html
-          grep -Fq 'body[data-theme="light"]' public/theme.css
+          grep -Fq 'body[data-theme="light"]' public/alternate-theme.css
           grep -Fq 'alternate-theme.css?v=620' public/theme-toggle.js
           grep -Fq 'theme-toggle.js?v=620' public/marketer/dashboard/index.html
           ! grep -Fq 'body:has(.tn-fixed-brand) #togetherThemeToggle{display:none!important}' public/marketer-sidebar.js
