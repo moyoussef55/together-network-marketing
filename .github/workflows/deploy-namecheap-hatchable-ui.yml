@@ -57,6 +57,7 @@ jobs:
             "public/marketer/reports/index.html"
             "public/marketer/team-checks/index.html"
             "public/marketer/network/index.html"
+            "public/marketer/register-agent/index.html"
             "public/admin-reset-password.html"
             "public/reset-password.html"
             "public/tn-admin-gateway-7f3c9b2d/index.html"
@@ -118,6 +119,8 @@ jobs:
           grep -Fq '/api/marketer/reports' public/marketer/reports/index.html
           grep -Fq '/api/marketer/team-checks' public/marketer/team-checks/index.html
           grep -Fq '/marketer/my-network/' public/marketer/network/index.html
+          grep -Fq 'registration-mode' public/marketer/register-agent/index.html
+          grep -Fq '/api/network/register-agent' public/marketer/register-agent/index.html
           grep -Fq '/api/admin/password-reset' public/admin-reset-password.html
           grep -Fq '/api/marketer-password-reset' public/reset-password.html
           grep -Fq 'دخول الإدارة' public/tn-admin-gateway-7f3c9b2d/index.html
@@ -186,6 +189,7 @@ jobs:
             "public/marketer/reports/index.html"
             "public/marketer/team-checks/index.html"
             "public/marketer/network/index.html"
+            "public/marketer/register-agent/index.html"
             "public/admin-reset-password.html"
             "public/reset-password.html"
             "public/tn-admin-gateway-7f3c9b2d/index.html"
@@ -263,6 +267,7 @@ jobs:
             "public/marketer/reports/index.html"
             "public/marketer/team-checks/index.html"
             "public/marketer/network/index.html"
+            "public/marketer/register-agent/index.html"
             "public/admin-reset-password.html"
             "public/reset-password.html"
             "public/tn-admin-gateway-7f3c9b2d/index.html"
