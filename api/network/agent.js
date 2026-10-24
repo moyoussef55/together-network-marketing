@@ -274,17 +274,20 @@ export default async function handler(req, res) {
       SELECT pos.account_position,
              COALESCE(b.total_right,0)::bigint AS total_right,
              COALESCE(b.total_left,0)::bigint AS total_left,
-             COALESCE((SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position AND s.week_end <= (date_trunc('week',timezone('Africa/Cairo',now()))::date-2) ORDER BY s.settled_at DESC LIMIT 1),0)::bigint
+             (b.member_id IS NOT NULL) AS has_live_bv_data,
+             COALESCE(b.carry_right,(SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),0)::bigint
                + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                     WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='right'
-                      AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                          WHERE s.member_id=$1 AND s.account_position=pos.account_position AND s.week_end <= (date_trunc('week',timezone('Africa/Cairo',now()))::date-2)),
+                      AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                          WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                          ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                         ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_right,
-             COALESCE((SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position AND s.week_end <= (date_trunc('week',timezone('Africa/Cairo',now()))::date-2) ORDER BY s.settled_at DESC LIMIT 1),0)::bigint
+             COALESCE(b.carry_left,(SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),0)::bigint
                + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                     WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='left'
-                      AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                          WHERE s.member_id=$1 AND s.account_position=pos.account_position AND s.week_end <= (date_trunc('week',timezone('Africa/Cairo',now()))::date-2)),
+                      AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                          WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                          ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                         ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_left
         FROM (VALUES (1),(2),(3)) AS pos(account_position)
         LEFT JOIN network_bv_balances b ON b.member_id=$1 AND b.account_position=pos.account_position
@@ -294,11 +297,12 @@ export default async function handler(req, res) {
     for(const row of liveBvQuery.rows){
       const pos=Number(row.account_position);
       const legacyPos={1:{right:Number(lp.rightPv||0),left:Number(lp.leftPv||0),carry_right:Number(lp.carryRight||0),carry_left:Number(lp.carryLeft||0)},2:{right:Number(lp.rightPv2||0),left:Number(lp.leftPv2||0),carry_right:Number(lp.carryRight2||0),carry_left:Number(lp.carryLeft2||0)},3:{right:Number(lp.rightPv3||0),left:Number(lp.leftPv3||0),carry_right:Number(lp.carryRight3||0),carry_left:Number(lp.carryLeft3||0)}}[pos];
+      const hasLiveBvData=row.has_live_bv_data===true;
       legacyBvByPosition[pos]={
-        right:Number(row.total_right||0)||legacyPos.right,
-        left:Number(row.total_left||0)||legacyPos.left,
-        carry_right:Number(row.carry_right||0)||legacyPos.carry_right,
-        carry_left:Number(row.carry_left||0)||legacyPos.carry_left
+        right:hasLiveBvData?Number(row.total_right||0):legacyPos.right,
+        left:hasLiveBvData?Number(row.total_left||0):legacyPos.left,
+        carry_right:hasLiveBvData?Number(row.carry_right||0):legacyPos.carry_right,
+        carry_left:hasLiveBvData?Number(row.carry_left||0):legacyPos.carry_left
       };
     }
     const qualifiedSales=Number(sales.rows[0]?.qualified_sales||0);const bvResult=await db.query("SELECT COALESCE(SUM(oi.quantity*oi.bv),0)::int AS purchase_bv FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.marketer_id=$1 AND o.status=ANY($2::text[])",[targetId,["paid","processing","shipped","delivered","completed"]]);const purchaseBv=Number(bvResult.rows[0]?.purchase_bv||0);const tier=Math.max(purchaseBv>=3000?3:purchaseBv>=2000?2:purchaseBv>=1000?1:0,Number(profile.rows[0]?.admin_tier_override||0));return res.json({target:{...profile.rows[0],qualified_sales:qualifiedSales,tier,sponsor,upline,bv_by_position:legacyBvByPosition},placements:rows.rows,first_four:firstFour,can_navigate_upline:targetId!==uid&&Boolean(upline?.id)});
