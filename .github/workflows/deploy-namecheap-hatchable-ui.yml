@@ -118,9 +118,9 @@ jobs:
           grep -Fq '/api/marketer/reports' public/marketer/reports/index.html
           grep -Fq '/api/marketer/team-checks' public/marketer/team-checks/index.html
           grep -Fq '/marketer/my-network/' public/marketer/network/index.html
-          grep -qi '<html' public/admin-reset-password.html
-          grep -qi '<html' public/reset-password.html
-          grep -Fq 'tn-admin-gateway-7f3c9b2d' public/tn-admin-gateway-7f3c9b2d/index.html
+          grep -Fq '/api/admin/password-reset' public/admin-reset-password.html
+          grep -Fq '/api/marketer-password-reset' public/reset-password.html
+          grep -Fq 'دخول الإدارة' public/tn-admin-gateway-7f3c9b2d/index.html
           grep -Fq '/api/admin/update-control' public/admin/update/index.html
           grep -Fq '/api/admin/wallet-transfer' public/admin/wallet-transfer/index.html
           grep -Fq '/api/admin/withdrawals' public/admin/withdrawals/index.html
