@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /marketer/
+Disallow: /api/
+Disallow: /tn-admin-gateway-7f3c9b2d/
+Sitemap: https://marketing.together-v-egp.com/sitemap.xml
