@@ -24,6 +24,71 @@ app.use((req, res, next) => {
   next();
 });
 
+
+const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR || "./var/uploads");
+const EVENT_UPLOAD_TEMP_DIR = path.join(STORAGE_ROOT, ".incoming-events");
+const eventDiskUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      fs.mkdir(EVENT_UPLOAD_TEMP_DIR, { recursive: true }).then(
+        () => cb(null, EVENT_UPLOAD_TEMP_DIR),
+        error => cb(error)
+      );
+    },
+    filename: (_req, _file, cb) => cb(null, crypto.randomUUID() + ".upload")
+  }),
+  // Stream uploads to disk. Do not set a fileSize limit here: the previous
+  // proxy path was capped at 50 MB and also buffered the complete video.
+  limits: { files: 12, fields: 200, fieldSize: 25 * 1024 * 1024 }
+});
+
+// Authenticate before accepting the request body, then stream the video to disk
+// and call the local event handler (which shares the production database).
+app.post("/api/admin/events", async (req, res) => {
+  try {
+    const authModule = await import(pathToFileURL(path.join(__dirname, "lib/admin-auth.js")).href);
+    if (!(await authModule.requireAdminSession(req, res))) return;
+  } catch (error) {
+    console.error("Event upload auth check failed:", error?.code || error?.name || "Error");
+    if (!res.headersSent) return res.status(500).json({ ok: false, error: "admin_auth_unavailable" });
+    return;
+  }
+
+  eventDiskUpload.any()(req, res, async error => {
+    const cleanup = () => Promise.all((req.files || []).map(file =>
+      file.path ? fs.rm(file.path, { force: true }).catch(() => {}) : Promise.resolve()
+    ));
+    if (error) {
+      await cleanup();
+      if (error instanceof multer.MulterError) {
+        const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+        return res.status(status).json({ ok: false, error: "upload_rejected", code: error.code });
+      }
+      console.error("Event upload stream failed:", error?.code || error?.name || "Error");
+      return res.status(400).json({ ok: false, error: "upload_stream_failed" });
+    }
+
+    req.files = (req.files || []).map(file => ({
+      field: file.fieldname,
+      filename: file.originalname,
+      contentType: file.mimetype,
+      path: file.path,
+      size: file.size
+    }));
+
+    try {
+      const handlerPath = path.join(API_DIR, "admin", "events.js");
+      const handler = await import(pathToFileURL(handlerPath).href);
+      if (typeof handler.default !== "function") throw new Error("invalid_event_handler");
+      await handler.default(req, res);
+    } catch (handlerError) {
+      await cleanup();
+      console.error("Streamed event upload handler failed:", handlerError?.code || handlerError?.name || "Error");
+      if (!res.headersSent) return res.status(500).json({ ok: false, error: "event_save_failed" });
+    }
+  });
+});
+
 app.use("/api", async (req, res, next) => {
   // These SEO endpoints run on Namecheap but use the same Hatchable PostgreSQL database.
   // All other API routes continue through the existing Hatchable proxy unchanged.
@@ -141,6 +206,22 @@ app.get("/healthz", async (_req, res) => {
     return res.status(503).json(status);
   }
 });
+app.get("/event-media", async (req, res) => {
+  const key = String(req.query.key || "");
+  if (!/^namecheap-events\/[a-f0-9-]{36}\.(?:jpg|png|webp|gif|mp4|webm|mov)$/i.test(key)) return res.status(404).end();
+  const target = path.resolve(STORAGE_ROOT, key);
+  if (target === STORAGE_ROOT || !target.startsWith(STORAGE_ROOT + path.sep)) return res.status(404).end();
+  try {
+    const stat = await fs.stat(target);
+    if (!stat.isFile()) return res.status(404).end();
+    res.setHeader("Cache-Control", "private, max-age=300");
+    res.setHeader("Accept-Ranges", "bytes");
+    return res.sendFile(target);
+  } catch {
+    return res.status(404).end();
+  }
+});
+
 app.get("/uploads", async (req, res) => {
   const key = String(req.query.key || "");
   const expires = String(req.query.expires || "");
@@ -244,6 +325,9 @@ app.use((error, _req, res, _next) => {
 });
 
 const server = app.listen(PORT, "0.0.0.0", () => console.log(`Together Network runtime listening on port ${PORT}`));
+// Large event videos may take longer than Node’s default 5-minute request deadline.
+server.requestTimeout = 0;
+server.timeout = 0;
 async function shutdown() {
   server.close(async () => { await closeRuntimeResources().catch(() => {}); process.exit(0); });
   setTimeout(() => process.exit(1), 10000).unref();
