@@ -22,56 +22,130 @@ jobs:
       - name: Check out the currently deployed compatibility branch
         uses: actions/checkout@v4
 
-      - name: Patch only the remember-me labels and checkbox on two pages
+      - name: Patch remember-me UI and authentication logic for the six required files
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          login_path = Path("public/login.html")
-          admin_path = Path("public/tn-admin-gateway-7f3c9b2d/index.html")
-          login = login_path.read_text(encoding="utf-8")
-          admin = admin_path.read_text(encoding="utf-8")
+          paths = {
+              "login": Path("public/login.html"),
+              "admin": Path("public/tn-admin-gateway-7f3c9b2d/index.html"),
+              "marketer_api": Path("api/marketer-access.js"),
+              "network_auth": Path("lib/network-auth.js"),
+              "admin_api": Path("api/admin/login.js"),
+              "admin_auth": Path("lib/admin-auth.js"),
+          }
+          data = {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
 
+          # Short bilingual marketer label.
           old_attr = 'data-ar="البقاء قيد تسجيل الدخول حتى تسجيل الخروج" data-en="Keep me signed in until I sign out">البقاء قيد تسجيل الدخول حتى تسجيل الخروج'
           new_attr = 'data-ar="تذكرني" data-en="Remember me">تذكرني'
           old_js = '$("rememberText").textContent=lang==="ar"?"البقاء قيد تسجيل الدخول حتى تسجيل الخروج":"Keep me signed in until I sign out";'
           new_js = '$("rememberText").textContent=lang==="ar"?"تذكرني":"Remember me";'
+          assert data["login"].count(old_attr) == 1
+          assert data["login"].count(old_js) == 1
+          assert 'rememberMe:$("rememberMe").checked' in data["login"]
+          data["login"] = data["login"].replace(old_attr, new_attr, 1).replace(old_js, new_js, 1)
 
-          assert login.count(old_attr) == 1, "Unexpected login page source; refusing to patch"
-          assert login.count(old_js) == 1, "Unexpected login translation source; refusing to patch"
-          assert 'rememberMe:$("rememberMe").checked' in login, "Login checkbox handler is missing"
-          login = login.replace(old_attr, new_attr, 1)
-          login = login.replace(old_js, new_js, 1)
-
-          assert "rememberMe" not in admin, "Admin source already contains a remember-me implementation; refusing duplicate insertion"
+          # Admin checkbox + POST body.
+          assert "rememberMe" not in data["admin"]
           checkbox = '<label class="remember-row" for="rememberMe" style="display:flex;align-items:center;gap:8px;margin:12px 0 2px;font-size:14px;cursor:pointer"><input id="rememberMe" type="checkbox" style="width:16px;height:16px;accent-color:#60a5fa"><span>تذكرني</span></label>'
           submit = '<button class="btn primary" id="submit" type="submit">تسجيل الدخول</button></form>'
-          old_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,setupKey})'
-          new_payload = 'body:JSON.stringify({email:$("email").value,password:$("password").value,rememberMe:$("rememberMe")?.checked===true,setupKey})'
-          assert admin.count(submit) == 1, "Unexpected admin login form; refusing to patch"
-          assert admin.count(old_payload) == 1, "Unexpected admin login request; refusing to patch"
-          admin = admin.replace(submit, checkbox + submit, 1)
-          admin = admin.replace(old_payload, new_payload, 1)
+          assert data["admin"].count(submit) == 1
+          data["admin"] = data["admin"].replace(submit, checkbox + submit, 1)
 
-          assert new_attr in login and new_js in login
-          assert "البقاء قيد تسجيل الدخول حتى تسجيل الخروج" not in login
-          assert login.count('id="rememberMe"') == 1
-          assert admin.count('id="rememberMe"') == 1
-          assert '<span>تذكرني</span>' in admin
-          assert 'rememberMe:$("rememberMe")?.checked===true' in admin
+          # Marketer login handler must pass the user's actual checkbox selection.
+          old_call = "createNetworkSession(res,p.id);"
+          new_call = "createNetworkSession(res,p.id,b.rememberMe === true);"
+          assert data["marketer_api"].count(old_call) == 1
+          data["marketer_api"] = data["marketer_api"].replace(old_call, new_call, 1)
 
-          login_path.write_text(login, encoding="utf-8")
-          admin_path.write_text(admin, encoding="utf-8")
-          print("PATCH_OK: only the two intended login pages were modified")
+          # Store checked marketer sessions for 10 years; unchecked sessions remain session cookies
+          # with the existing 30-day server-side expiry.
+          old_network_fn = """export async function createNetworkSession(res, userId) {
+            const token = crypto.randomBytes(32).toString("hex");
+            await db.query("DELETE FROM network_auth_sessions WHERE expires_at<=now() OR user_id=$1", [String(userId)]);
+            await db.query(
+              "INSERT INTO network_auth_sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+interval '30 days')",
+              [String(userId), digest(token)]
+            );
+            res.cookie(COOKIE, token, { httpOnly: true, secure: true, sameSite: "lax", path: "/", maxAge: MAX_AGE });
+            return token;
+          }"""
+          new_network_fn = """export async function createNetworkSession(res, userId, rememberMe = true) {
+            const token = crypto.randomBytes(32).toString("hex");
+            const persistent = rememberMe === true;
+            const cookieAge = persistent ? 10 * 365 * 24 * 60 * 60 * 1000 : undefined;
+            await db.query("DELETE FROM network_auth_sessions WHERE expires_at<=now() OR user_id=$1", [String(userId)]);
+            await db.query(
+              "INSERT INTO network_auth_sessions(user_id,token_hash,expires_at) VALUES($1,$2,now()+CASE WHEN $3 THEN interval '10 years' ELSE interval '30 days' END)",
+              [String(userId), digest(token), persistent]
+            );
+            const options = { httpOnly: true, secure: true, sameSite: "lax", path: "/" };
+            if (persistent) options.maxAge = cookieAge;
+            res.cookie(COOKIE, token, options);
+            return token;
+          }"""
+          assert data["network_auth"].count(old_network_fn) == 1
+          data["network_auth"] = data["network_auth"].replace(old_network_fn, new_network_fn, 1)
+
+          # Admin sign-in forwards rememberMe, instead of ignoring it.
+          old_admin_call = "await issueAdminSession(res);"
+          new_admin_call = "await issueAdminSession(res, b.rememberMe === true);"
+          assert data["admin_api"].count(old_admin_call) == 1
+          data["admin_api"] = data["admin_api"].replace(old_admin_call, new_admin_call, 1)
+
+          # Cookie maxAge is milliseconds in Express. Keep normal sessions at 12h and make
+          # checked "remember me" sessions persist for 10 years, matching the server-side expiry.
+          old_cookie_helper = "function setCookie(res, token, maxAge = MAX_AGE) {"
+          new_cookie_helper = "function setCookie(res, token, maxAge = MAX_AGE * 1000) {"
+          assert data["admin_auth"].count(old_cookie_helper) == 1
+          data["admin_auth"] = data["admin_auth"].replace(old_cookie_helper, new_cookie_helper, 1)
+          old_admin_fn = """export async function issueAdminSession(res) {
+            const token = crypto.randomBytes(32).toString("hex");
+            await db.query("DELETE FROM network_admin_sessions WHERE expires_at<=now()");
+            await db.query("INSERT INTO network_admin_sessions(token_hash,expires_at) VALUES($1,now()+interval '12 hours')", [digest(token)]);
+            setCookie(res, token);
+          }"""
+          new_admin_fn = """export async function issueAdminSession(res, rememberMe = false) {
+            const token = crypto.randomBytes(32).toString("hex");
+            const persistent = rememberMe === true;
+            const cookieAge = persistent ? 10 * 365 * 24 * 60 * 60 * 1000 : MAX_AGE * 1000;
+            await db.query("DELETE FROM network_admin_sessions WHERE expires_at<=now()");
+            await db.query(
+              "INSERT INTO network_admin_sessions(token_hash,expires_at) VALUES($1,now()+CASE WHEN $2 THEN interval '10 years' ELSE interval '12 hours' END)",
+              [digest(token), persistent]
+            );
+            setCookie(res, token, cookieAge);
+          }"""
+          assert data["admin_auth"].count(old_admin_fn) == 1
+          data["admin_auth"] = data["admin_auth"].replace(old_admin_fn, new_admin_fn, 1)
+
+          assert new_attr in data["login"] and new_js in data["login"]
+          assert "البقاء قيد تسجيل الدخول حتى تسجيل الخروج" not in data["login"]
+          assert data["admin"].count('id="rememberMe"') == 1
+          assert new_call in data["marketer_api"]
+          assert "interval '10 years' ELSE interval '30 days'" in data["network_auth"]
+          assert new_admin_call in data["admin_api"]
+          assert "MAX_AGE * 1000" in data["admin_auth"]
+          assert "interval '10 years' ELSE interval '12 hours'" in data["admin_auth"]
+
+          for name, path in paths.items():
+              path.write_text(data[name], encoding="utf-8")
+          print("PATCH_OK: two pages and four authentication files updated")
           PY
-          echo "=== PATCHED FILE HASHES ==="
-          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html
-          echo "=== PATCH VALIDATION ==="
+          node --check api/marketer-access.js
+          node --check lib/network-auth.js
+          node --check api/admin/login.js
+          node --check lib/admin-auth.js
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' public/login.html
-          grep -Fq 'textContent=lang==="ar"?"تذكرني":"Remember me";' public/login.html
-          grep -Fq '<span>تذكرني</span>' public/tn-admin-gateway-7f3c9b2d/index.html
+          grep -Fq 'createNetworkSession(res,p.id,b.rememberMe === true)' api/marketer-access.js
+          grep -Fq 'issueAdminSession(res, b.rememberMe === true)' api/admin/login.js
+          grep -Fq 'MAX_AGE * 1000' lib/admin-auth.js
+          echo "=== SIX FILE HASHES ==="
+          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html api/marketer-access.js lib/network-auth.js api/admin/login.js lib/admin-auth.js
 
       - name: Pin the previously verified Namecheap SSH host key
         shell: bash
@@ -88,7 +162,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
-      - name: Transfer only the two patched HTML files to remote staging
+      - name: Transfer only the six patched UI/auth files to remote staging
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -100,9 +174,13 @@ jobs:
           FILES=(
             "public/login.html"
             "public/tn-admin-gateway-7f3c9b2d/index.html"
+            "api/marketer-access.js"
+            "lib/network-auth.js"
+            "api/admin/login.js"
+            "lib/admin-auth.js"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
-          tar -czf - "${FILES[@]}" | ssh \
+          tar -czf - "${{FILES[@]}" | ssh \
             -p "$PORT" \
             -o BatchMode=yes \
             -o StrictHostKeyChecking=yes \
@@ -112,7 +190,7 @@ jobs:
             "umask 077; mkdir -p '$REMOTE_STAGE'; tar -xzf - -C '$REMOTE_STAGE'"
           echo "REMOTE_STAGE_READY=$REMOTE_STAGE"
 
-      - name: Back up, atomically install, and verify only those two pages
+      - name: Back up, atomically install, restart, and verify the six UI/auth files
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -133,62 +211,81 @@ jobs:
           RUN_ID="$1"
           ROOT="/home/togeiign/marketing-network"
           STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
-          LOGIN="$ROOT/public/login.html"
-          ADMIN="$ROOT/public/tn-admin-gateway-7f3c9b2d/index.html"
-          LOGIN_REL="public/login.html"
-          ADMIN_REL="public/tn-admin-gateway-7f3c9b2d/index.html"
+          FILES=(
+            "public/login.html"
+            "public/tn-admin-gateway-7f3c9b2d/index.html"
+            "api/marketer-access.js"
+            "lib/network-auth.js"
+            "api/admin/login.js"
+            "lib/admin-auth.js"
+          )
 
           test -d "$ROOT"
-          test -f "$LOGIN" && test ! -L "$LOGIN"
-          test -f "$ADMIN" && test ! -L "$ADMIN"
-          test -s "$STAGE/$LOGIN_REL"
-          test -s "$STAGE/$ADMIN_REL"
-          grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' "$STAGE/$LOGIN_REL"
-          grep -Fq 'textContent=lang==="ar"?"تذكرني":"Remember me";' "$STAGE/$LOGIN_REL"
-          grep -Fq '<span>تذكرني</span>' "$STAGE/$ADMIN_REL"
-          grep -Fq 'rememberMe:$("rememberMe")?.checked===true' "$STAGE/$ADMIN_REL"
+          for REL in "${{FILES[@]}"; do
+            test -s "$STAGE/$REL"
+            test -f "$ROOT/$REL" && test ! -L "$ROOT/$REL"
+          done
+          grep -Fq 'createNetworkSession(res,p.id,b.rememberMe === true)' "$STAGE/api/marketer-access.js"
+          grep -Fq "interval '10 years' ELSE interval '30 days'" "$STAGE/lib/network-auth.js"
+          grep -Fq 'issueAdminSession(res, b.rememberMe === true)' "$STAGE/api/admin/login.js"
+          grep -Fq "interval '10 years' ELSE interval '12 hours'" "$STAGE/lib/admin-auth.js"
+          grep -Fq 'MAX_AGE * 1000' "$STAGE/lib/admin-auth.js"
+          grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' "$STAGE/public/login.html"
 
           STAMP="$(date +%Y%m%d-%H%M%S)"
-          LOGIN_BACKUP="$LOGIN.BACKUP-before-remember-me-$STAMP-$RUN_ID"
-          ADMIN_BACKUP="$ADMIN.BACKUP-before-remember-me-$STAMP-$RUN_ID"
-          LOGIN_INCOMING="$ROOT/public/.login.html.incoming-$RUN_ID"
-          ADMIN_INCOMING="$ROOT/public/tn-admin-gateway-7f3c9b2d/.index.html.incoming-$RUN_ID"
+          TARGETS=()
+          STAGED=()
+          INCOMING=()
+          BACKUPS=()
 
-          cp -p "$LOGIN" "$LOGIN_BACKUP"
-          cp -p "$ADMIN" "$ADMIN_BACKUP"
-          cp "$STAGE/$LOGIN_REL" "$LOGIN_INCOMING"
-          cp "$STAGE/$ADMIN_REL" "$ADMIN_INCOMING"
-          chmod --reference="$LOGIN" "$LOGIN_INCOMING"
-          chmod --reference="$ADMIN" "$ADMIN_INCOMING"
-          cmp -s "$STAGE/$LOGIN_REL" "$LOGIN_INCOMING"
-          cmp -s "$STAGE/$ADMIN_REL" "$ADMIN_INCOMING"
+          # Prepare all six backups and incoming files before replacing any live target.
+          for REL in "${{FILES[@]}"; do
+            TARGET="$ROOT/$REL"
+            STAGED_FILE="$STAGE/$REL"
+            DIR="$(dirname "$TARGET")"
+            BASE="$(basename "$TARGET")"
+            INCOMING_FILE="$DIR/.$BASE.incoming-$RUN_ID"
+            BACKUP_FILE="$TARGET.BACKUP-before-remember-session-$STAMP-$RUN_ID"
+            cp -p "$TARGET" "$BACKUP_FILE"
+            cp "$STAGED_FILE" "$INCOMING_FILE"
+            chmod --reference="$TARGET" "$INCOMING_FILE"
+            cmp -s "$STAGED_FILE" "$INCOMING_FILE"
+            TARGETS+=("$TARGET")
+            STAGED+=("$STAGED_FILE")
+            INCOMING+=("$INCOMING_FILE")
+            BACKUPS+=("$BACKUP_FILE")
+          done
 
           rollback() {
-            cp -p "$LOGIN_BACKUP" "$LOGIN" || true
-            cp -p "$ADMIN_BACKUP" "$ADMIN" || true
-            rm -f "$LOGIN_INCOMING" "$ADMIN_INCOMING"
+            for ((i=0; i<${{#TARGETS[@]}; i++)); do
+              cp -p "${{BACKUPS[$i]}" "${{TARGETS[$i]}" || true
+              rm -f "${{INCOMING[$i]}" || true
+            done
           }
 
-          if ! mv -f "$LOGIN_INCOMING" "$LOGIN"; then
-            rollback
-            echo "INSTALL_FAILED: login page; original files restored" >&2
-            exit 1
-          fi
-          if ! mv -f "$ADMIN_INCOMING" "$ADMIN"; then
-            rollback
-            echo "INSTALL_FAILED: admin page; original files restored" >&2
-            exit 1
-          fi
-          if ! cmp -s "$STAGE/$LOGIN_REL" "$LOGIN" || ! cmp -s "$STAGE/$ADMIN_REL" "$ADMIN"; then
-            rollback
-            echo "VERIFY_FAILED: original files restored" >&2
-            exit 1
-          fi
+          for ((i=0; i<${{#TARGETS[@]}; i++)); do
+            if ! mv -f "${{INCOMING[$i]}" "${{TARGETS[$i]}"; then
+              rollback
+              echo "INSTALL_FAILED: original files restored" >&2
+              exit 1
+            fi
+          done
+          for ((i=0; i<${{#TARGETS[@]}; i++)); do
+            if ! cmp -s "${{STAGED[$i]}" "${{TARGETS[$i]}"; then
+              rollback
+              echo "VERIFY_FAILED: original files restored" >&2
+              exit 1
+            fi
+          done
 
+          # The API handler is dynamically imported, so signal the hosting runtime to reload.
+          mkdir -p "$ROOT/tmp"
+          touch "$ROOT/tmp/restart.txt"
+          echo "=== LIVE FILE HASHES ==="
+          sha256sum "${{TARGETS[@]}"
+          for ((i=0; i<${{#TARGETS[@]}; i++)); do
+            echo "BACKUP_CREATED=${{BACKUPS[$i]}"
+          done
+          echo "NAMECHEAP_REMEMBER_ME_AUTH_DEPLOY_OK"
           rm -rf "$STAGE"
-          echo "BACKUP_LOGIN=$LOGIN_BACKUP"
-          echo "BACKUP_ADMIN=$ADMIN_BACKUP"
-          echo "=== LIVE HASHES ==="
-          sha256sum "$LOGIN" "$ADMIN"
-          echo "NAMECHEAP_REMEMBER_ME_DEPLOY_OK"
           REMOTE
