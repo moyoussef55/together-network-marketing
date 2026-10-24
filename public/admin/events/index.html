@@ -12,4 +12,67 @@ async function changeEvent(id,patch){const e=events.find(x=>Number(x.id)===id);i
 $("#media").onchange=()=>{const f=$("#media").files[0],im=$("#imagePreview"),vid=$("#videoPreview");im.style.display="none";vid.style.display="none";if(!f)return;const u=URL.createObjectURL(f);if(f.type.startsWith("video/")){vid.src=u;vid.style.display="block"}else if(f.type.startsWith("image/")){im.src=u;im.style.display="block"}};
 $("#form").onsubmit=async e=>{e.preventDefault();const files=Array.from($("#media").files);if(!files.length)return;if(false){$("#status").textContent="";return}$("#save").disabled=true;$("#status").textContent="جارٍ رفع الوسائط ونشر الحدث…";try{const fd=new FormData();fd.append("title",$("#title").value.trim());fd.append("description",$("#description").value.trim());fd.append("event_type",$("#eventType").value);fd.append("event_date",$("#eventDate").value);fd.append("section_title",$("#sectionTitle").value.trim());fd.append("audience",$("#audience").value);files.forEach(file=>fd.append("media",file,file.name));const r=await fetch("/api/admin/events",{method:"POST",body:fd});const d=await r.json();if(!r.ok)throw Error(d.error==="unsupported_media_type"?"نوع الملف غير مدعوم":d.error==="media_too_large"?"تعذر رفع الملف بسبب حدود خدمة الاستضافة أو حجم الطلب":d.error||"تعذر نشر الحدث");$("#title").value="";$("#description").value="";$("#eventDate").value="";$("#sectionTitle").value="";$("#eventType").value="past";$("#audience").value="members";$("#media").value="";$("#imagePreview").style.display="none";$("#videoPreview").style.display="none";$("#status").textContent="تم نشر الحدث بنجاح.";await load()}catch(err){$("#status").textContent=err.message}finally{$("#save").disabled=false}};
 $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);load().catch(e=>$("#status").textContent=e.message);
+</script><script>
+(()=> {
+ const form=document.querySelector("#form"),input=document.querySelector("#media"),save=document.querySelector("#save"),status=document.querySelector("#status");
+ if(!form||!input||!save||!status)return;
+ const progress=document.createElement("progress");progress.max=100;progress.value=0;progress.style.cssText="display:none;width:100%;height:14px;margin-top:8px;accent-color:#8b5a2b";
+ status.insertAdjacentElement("afterend",progress);
+ const CHUNK=2*1024*1024,CONCURRENCY=3;
+ const bytesBase64=async blob=>{
+  const bytes=new Uint8Array(await blob.arrayBuffer());let binary="";
+  for(let i=0;i<bytes.length;i+=32768)binary+=String.fromCharCode(...bytes.subarray(i,i+32768));
+  return btoa(binary);
+ };
+ const responseJson=async r=>{
+  let d={};try{d=await r.json()}catch(_){}
+  if(!r.ok)throw Error(d.error==="invalid_chunk_size"||r.status===413?"حجم جزء الرفع تجاوز حد الخادم. أعد المحاولة، وسيتم إرسال الفيديو على أجزاء أصغر.":d.error==="unsupported_media_type"?"نوع ملف غير مدعوم. استخدم MP4 أو WEBM أو MOV للفيديو.":d.error==="missing_upload_chunk"?"لم يصل أحد أجزاء الفيديو. أعد المحاولة لضمان اكتمال الملف.":d.error||("فشل الطلب (HTTP "+r.status+")"));
+  return d;
+ };
+ const post=async body=>responseJson(await fetch("/api/admin/events",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}));
+ const updateProgress=(done,total,label)=>{
+  const pct=total?Math.min(99,Math.floor(done/total*100)):0;progress.value=pct;
+  status.textContent=label+" — "+pct+"% ("+(done/1048576).toFixed(1)+" من "+(total/1048576).toFixed(1)+" ميجابايت)";
+ };
+ async function uploadFile(file,doneRef,total,label){
+  const id=crypto.randomUUID(),chunks=Math.ceil(file.size/CHUNK);
+  for(let batchStart=0;batchStart<chunks;batchStart+=CONCURRENCY){
+   const jobs=[];
+   for(let index=batchStart;index<Math.min(chunks,batchStart+CONCURRENCY);index++){
+    jobs.push((async()=>{
+     const part=file.slice(index*CHUNK,Math.min(file.size,(index+1)*CHUNK));
+     const data_base64=await bytesBase64(part);let lastError;
+     for(let attempt=0;attempt<3;attempt++){
+      try{
+       await post({upload_action:"upload_chunk",upload_id:id,index,data_base64});
+       doneRef.value+=part.size;updateProgress(doneRef.value,total,label);return;
+      }catch(err){lastError=err;if(attempt<2)await new Promise(resolve=>setTimeout(resolve,500*(attempt+1)));}
+     }
+     throw Error("تعذر رفع جزء من الملف «"+file.name+"»: "+(lastError?.message||"خطأ في الاتصال"));
+    })());
+   }
+   await Promise.all(jobs);
+  }
+  status.textContent="جاري تجميع الفيديو وحفظه: "+file.name+"…";
+  const result=await post({upload_action:"finalize_media",upload_id:id,chunks,name:file.name,content_type:file.type||"application/octet-stream"});
+  return result.media;
+ }
+ form.onsubmit=async e=>{
+  e.preventDefault();const files=Array.from(input.files||[]);if(!files.length){status.textContent="اختر صورة أو فيديو أولًا.";return}
+  save.disabled=true;progress.style.display="block";progress.value=0;
+  const total=files.reduce((n,f)=>n+f.size,0),doneRef={value:0},uploaded=[];
+  status.textContent="بدء الرفع على أجزاء قابلة لإعادة المحاولة…";
+  try{
+   for(const file of files)uploaded.push(await uploadFile(file,doneRef,total,"رفع "+file.name));
+   status.textContent="اكتمل الرفع. جاري نشر الحدث…";progress.value=99;
+   await post({upload_action:"publish_uploaded",title:document.querySelector("#title").value.trim(),description:document.querySelector("#description").value.trim(),event_type:document.querySelector("#eventType").value,event_date:document.querySelector("#eventDate").value,section_title:document.querySelector("#sectionTitle").value.trim(),audience:document.querySelector("#audience").value,media:uploaded});
+   progress.value=100;status.textContent="تم رفع الملفات ونشر الحدث بنجاح.";
+   document.querySelector("#title").value="";document.querySelector("#description").value="";document.querySelector("#eventDate").value="";document.querySelector("#sectionTitle").value="";
+   document.querySelector("#eventType").value="past";document.querySelector("#audience").value="members";input.value="";
+   document.querySelector("#imagePreview").style.display="none";document.querySelector("#videoPreview").style.display="none";
+   await window.fetch("/api/admin/events?fresh="+Date.now(),{cache:"no-store"}).then(r=>r.json()).then(d=>{if(d.ok&&Array.isArray(d.events)){const refresh=document.querySelector("#refresh");refresh?.click();}});
+  }catch(err){status.textContent="لم يكتمل الرفع: "+(err?.message||"خطأ غير معروف")+". لم يتم نشر الحدث. يمكنك إعادة المحاولة.";}
+  finally{save.disabled=false;}
+ };
+})();
 </script><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=600"></script></body></html>
