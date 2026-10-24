@@ -1,0 +1,67 @@
+name: Diagnose Namecheap network agent 500 (read-only)
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - ".github/workflows/diagnose-namecheap-network-agent.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: diagnose-namecheap-network-agent
+  cancel-in-progress: false
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Pin Namecheap host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Read-only inspect logs and runtime metadata (no environment values)
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" 'bash -s' <<'REMOTE'
+          set -u
+          ROOT="/home/togeiign/marketing-network"
+          echo "=== ROOT / ENTRYPOINT METADATA ==="
+          if test -d "$ROOT"; then
+            stat -c '%n | size=%s | modified=%y' "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
+            sha256sum "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
+            echo "=== RESTART MARKER ==="
+            stat -c '%n | modified=%y' "$ROOT/tmp/restart.txt" 2>&1 || true
+          else
+            echo "PROJECT_ROOT_MISSING"
+          fi
+
+          echo "=== RELEVANT LOG FILE DISCOVERY ==="
+          find /home/togeiign -maxdepth 5 -type f \( -name 'stderr.log' -o -name 'passenger.log' -o -name 'error_log' -o -name 'error.log' -o -name 'npm-debug.log' \) -printf '%T@ %p\\n' 2>/dev/null | sort -nr | head -n 20 | cut -d' ' -f2- | while IFS= read -r f; do
+            test -r "$f" || continue
+            echo "--- LOG: $f (last 100 lines; filtered) ---"
+            tail -n 100 "$f" 2>/dev/null | grep -iE 'network/agent|internal_error|uncaught|exception|error|failed|cannot find|module not found|syntaxerror|typeerror|referenceerror|database|relation .* does not exist|permission denied' | tail -n 35 | sed -E 's/(password|passwd|token|secret|authorization|cookie)([=: ]+)[^ ,;]+/\\1\\2[REDACTED]/Ig; s/(Bearer )[A-Za-z0-9._~+\\/-]+/\\1[REDACTED]/Ig; s/(postgres(ql)?:\\/\\/)[^ @]+@/\\1[REDACTED]@/Ig'
+          done
+
+          echo "=== PROCESS SUMMARY (no command arguments) ==="
+          ps -eo user=,comm= 2>/dev/null | grep -Ei 'node|passenger|npm' | sort | uniq -c | head -n 20 || true
+          echo "=== DIAGNOSTIC COMPLETE; no files changed, no restart requested ==="
+          REMOTE
