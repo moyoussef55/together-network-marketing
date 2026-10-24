@@ -52,7 +52,22 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
             -o ConnectTimeout=15 \
-            "$USER@$HOST" "node - '$RUN_ID'" <<'REMOTE_NODE'
+            "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE_BASH'
+          set -euo pipefail
+          RUN_ID="$1"
+          NODE_BIN="$(command -v node || true)"
+          if [ -z "$NODE_BIN" ]; then
+            NODE_BIN="$(find /home/togeiign/nodevenv -path '*/bin/node' -type f -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$NODE_BIN" ]; then
+            NODE_BIN="$(find /home/togeiign -path '*/bin/node' -type f -print -quit 2>/dev/null || true)"
+          fi
+          if [ -z "$NODE_BIN" ] || [ ! -x "$NODE_BIN" ]; then
+            echo "No executable Node.js binary was found; no files were changed." >&2
+            exit 127
+          fi
+          echo "REMOTE_NODE_BINARY=$NODE_BIN"
+          "$NODE_BIN" - "$RUN_ID" <<'REMOTE_NODE'
           const fs = require("node:fs");
           const path = require("node:path");
           const crypto = require("node:crypto");
@@ -174,6 +189,7 @@ jobs:
           }
           console.log("NAMECHEAP_POLLING_OPTIMIZATION_OK");
           REMOTE_NODE
+          REMOTE_BASH
 
       - name: Copy the verified live pages back into the repository workspace
         shell: bash
@@ -209,8 +225,6 @@ jobs:
 
       - name: Save the exact optimized pages in GitHub without triggering broad deployments
         shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
