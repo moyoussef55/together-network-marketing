@@ -71,6 +71,7 @@ export default async function handler(req, res) {
 
     const agenciesResult = await db.query(`
       SELECT rr.account_position,
+             COUNT(DISTINCT rr.member_id)::int AS marketers_in_agency,
              COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount > 0)::int AS marketers_with_cheques,
              COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_rows,
              FLOOR(COALESCE(SUM(rr.check_amount),0)/1500)::int AS cheque_count,
