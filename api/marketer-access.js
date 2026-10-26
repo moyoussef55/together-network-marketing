@@ -64,7 +64,7 @@ export default async function(req,res) {
     if (!p.login_password_hash && p.effective_password_hash) {
       await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1 AND (login_password_hash IS NULL OR login_password_hash='')",[p.id,p.effective_password_hash]);
     }
-    const token = await createNetworkSession(res,p.id);
+    const token = await createNetworkSession(res,p.id,b.rememberMe === true);
     return res.json({ok:true,token,user:{id:p.id,email:p.email,name:p.display_name,role:p.role,referral_code:p.referral_code}});
   }
 
