@@ -13,7 +13,11 @@ export default async function handler(req, res) {
   const offset = (page - 1) * limit;
 
   if (action === "checks") {
-    const picked = String(req.query?.date || "").trim();
+    let picked = String(req.query?.date || "").trim();
+    if (!picked) {
+      const latest = await db.query(`SELECT MAX(s.week_end)::date AS latest_week_end FROM network_bv_settlements s WHERE s.check_amount > 0`);
+      picked = String(latest.rows[0]?.latest_week_end || "").slice(0, 10);
+    }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(picked)) {
       return res.status(400).json({ ok:false, error:"اختار تاريخ الأسبوع أولاً." });
     }
@@ -81,7 +85,7 @@ export default async function handler(req, res) {
     `;
     const count = await db.query(`SELECT count(*)::int AS total FROM (${base}) x`, params);
     const rows = await db.query(`${base} ORDER BY latest_at DESC NULLS LAST, name ASC LIMIT ${limit} OFFSET ${offset}`, params);
-    return res.json({ok:true, action, total:Number(count.rows[0]?.total||0), page, page_size:limit, pages:Math.ceil(Number(count.rows[0]?.total||0)/limit), rows:rows.rows});
+    return res.json({ok:true, action, date:picked, total:Number(count.rows[0]?.total||0), page, page_size:limit, pages:Math.ceil(Number(count.rows[0]?.total||0)/limit), rows:rows.rows});
   }
 
   if (action === "trace") {
