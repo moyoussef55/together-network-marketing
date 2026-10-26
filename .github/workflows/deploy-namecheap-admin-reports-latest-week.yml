@@ -1,0 +1,106 @@
+name: Deploy admin reports page to Namecheap
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "public/admin/reports/index.html"
+      - ".github/workflows/deploy-namecheap-admin-reports-latest-week.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-admin-reports-page
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the exact GitHub revision
+        uses: actions/checkout@v4
+
+      - name: Validate the report page
+        shell: bash
+        run: |
+          set -euo pipefail
+          PAGE="public/admin/reports/index.html"
+          test -s "$PAGE"
+          grep -Fq 'تقرير الشيكات' "$PAGE"
+          grep -Fq 'latest' "$PAGE" || grep -Fq 'أحدث أسبوع متاح' "$PAGE"
+          sha256sum "$PAGE"
+
+      - name: Pin the Namecheap server host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Transfer page to a temporary file
+        shell: bash
+        env:
+          NAMECHEAP_SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          NAMECHEAP_SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          NAMECHEAP_SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          PAGE="public/admin/reports/index.html"
+          REMOTE_TMP="/home/togeiign/.admin-reports-index.html.deploy-${DEPLOY_RUN_ID}"
+          ssh -p "$NAMECHEAP_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" "umask 077; cat > '$REMOTE_TMP'" < "$PAGE"
+
+      - name: Back up and atomically install the page
+        shell: bash
+        env:
+          NAMECHEAP_SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          NAMECHEAP_SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          NAMECHEAP_SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$NAMECHEAP_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" "bash -s -- '$DEPLOY_RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          TARGET_DIR="$ROOT/public/admin/reports"
+          TARGET="$TARGET_DIR/index.html"
+          STAGED="/home/togeiign/.admin-reports-index.html.deploy-$RUN_ID"
+          INCOMING="$TARGET_DIR/.index.html.incoming-$RUN_ID"
+          test -d "$ROOT"
+          test -d "$TARGET_DIR"
+          test -f "$TARGET"
+          test ! -L "$TARGET"
+          test -s "$STAGED"
+          grep -Fq 'تقرير الشيكات' "$STAGED"
+          cp "$STAGED" "$INCOMING"
+          chmod --reference="$TARGET" "$INCOMING"
+          cmp -s "$STAGED" "$INCOMING"
+          BACKUP="$TARGET.BACKUP-before-latest-week-sync-$(date +%Y%m%d-%H%M%S)"
+          cp -p "$TARGET" "$BACKUP"
+          if ! mv -f "$INCOMING" "$TARGET"; then
+            cp -p "$BACKUP" "$TARGET"
+            exit 1
+          fi
+          if ! cmp -s "$STAGED" "$TARGET"; then
+            cp -p "$BACKUP" "$TARGET"
+            echo "VERIFY_FAILED; restored backup: $BACKUP" >&2
+            exit 1
+          fi
+          sha256sum "$TARGET"
+          echo "BACKUP_CREATED=$BACKUP"
+          echo "NAMECHEAP_ADMIN_REPORTS_PAGE_DEPLOY_OK"
+          rm -f "$STAGED" "$INCOMING"
+          REMOTE
