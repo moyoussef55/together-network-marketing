@@ -30,6 +30,7 @@ table{width:100%;border-collapse:collapse;min-width:1050px;background:transparen
 .pager{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:16px}.pager button{display:inline-flex!important;visibility:visible!important;opacity:1!important;padding:8px 14px;border:1px solid var(--line,#203650)!important;background:#12243a!important;border-radius:9px;cursor:pointer;color:var(--text,#f5f7fb)!important;-webkit-text-fill-color:var(--text,#f5f7fb)!important}.pager button:disabled{opacity:.4!important}
 .empty{text-align:center;padding:28px;color:var(--muted,#9db0c8)!important}.hide{display:none!important}
 .badge{display:inline-flex;align-items:center;padding:5px 9px;border-radius:999px;background:#42d6a41a!important;color:var(--brand,#42d6a4)!important;border:1px solid #42d6a433;font-size:12px;font-weight:850}
+.update-summary{display:grid;gap:12px;margin:14px 0}.update-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px}.update-card{border:1px solid var(--line,#203650);border-radius:12px;padding:12px;background:linear-gradient(135deg,#12243a,#0a1728);min-width:0}.update-card b{display:block;color:var(--muted,#9db0c8);font-size:12px;margin-bottom:7px}.update-card strong{font-size:20px;overflow-wrap:anywhere}.agency-card{border-color:#2d6480}.update-back{justify-self:start}
 .report-note{background:#5ca8ff12!important;color:#c9e3ff!important;border:1px solid #5ca8ff40!important;padding:11px 13px;border-radius:12px;font-size:13px;line-height:1.8}
 .modal{position:fixed;inset:0;background:#020711d9!important;z-index:90;display:none;align-items:center;justify-content:center;padding:18px}.modal.open{display:flex}.modal-box{width:min(1000px,100%);max-height:94vh;overflow:auto;background:linear-gradient(180deg,#0d1b2e,#07111f)!important;color:var(--text,#f5f7fb)!important;border:1px solid var(--line,#203650);border-radius:16px;padding:20px;box-shadow:0 20px 70px #0008}
 .modal-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;position:sticky;top:0;padding:8px 0;background:#0d1b2e;z-index:3}.modal-actions .btn{display:inline-flex!important;visibility:visible!important;opacity:1!important}
@@ -59,6 +60,7 @@ table{width:100%;border-collapse:collapse;min-width:1050px;background:transparen
   <button class="tab" data-tab="withdrawals">💸 طلبات السحب</button>
   <button class="tab" data-tab="products">📦 المنتجات المطلوبة</button>
   <button class="tab" data-tab="invoices">🧾 فواتير الشراء</button>
+  <button class="tab" data-tab="updates">📊 تقارير التحديثات</button>
 </nav>
 <section class="panel" id="reportPanel">
   <div style="display:flex;gap:12px;justify-content:space-between;align-items:start;flex-wrap:wrap">
@@ -73,6 +75,7 @@ table{width:100%;border-collapse:collapse;min-width:1050px;background:transparen
   </div>
   </div>
   <div class="filters" id="checkDateFilter"><div class="field" style="max-width:260px"><label for="checkDate">تاريخ داخل أسبوع الشيكات</label><input id="checkDate" type="date"></div><span class="muted" style="font-size:12px;align-self:center">يعرض المسوقين الذين لديهم شيكات في الأسبوع المحدد.</span></div>
+  <div id="updateSummary" class="update-summary" style="display:none"></div>
   <div id="reportStatus" class="status" role="status">جاري تحميل التقرير…</div>
   <div class="table-wrap"><table><thead id="reportHead"></thead><tbody id="reportRows"></tbody></table></div>
   <div id="reportPager" class="pager"></div>
@@ -97,9 +100,10 @@ const configs={
  commissions:{title:"تقرير العمولات لكل مسوق",description:"إجمالي عمولات كل مسوق مع تاريخ وقيمة ونوع كل عمولة مسجلة.",headers:["المسوق","كود المسوق","إجمالي العمولات","عدد العمولات","آخر عمولة","تفاصيل العمولات","إجراءات"]},
  withdrawals:{title:"تقرير طلبات السحب",description:"طلبات السحب وحالتها والمبلغ ورقم التحويل وتاريخ الطلب لكل مسوق.",headers:["المسوق","كود المسوق","اسم المستفيد","المبلغ","رقم التحويل","الحالة","تاريخ الطلب","إجراءات"]},
  products:{title:"تقرير المنتجات المطلوبة",description:"تفاصيل كل منتج مطلوب والكمية والسعر والمسوق ورقم الطلب وحالة التنفيذ.",headers:["رقم الطلب","المسوق","كود المسوق","المنتج","الكمية","سعر الوحدة","إجمالي السطر","الحالة","التاريخ","إجراءات"]},
- invoices:{title:"تقرير فواتير الشراء",description:"فواتير الشراء بتفاصيل المنتجات والمبالغ وعنوان الاستلام وحالة الطلب.",headers:["رقم الفاتورة","المسوق","كود المسوق","عدد المنتجات","الإجمالي","الحالة","التاريخ","إجراءات"]}
+ invoices:{title:"تقرير فواتير الشراء",description:"فواتير الشراء بتفاصيل المنتجات والمبالغ وعنوان الاستلام وحالة الطلب.",headers:["رقم الفاتورة","المسوق","كود المسوق","عدد المنتجات","الإجمالي","الحالة","التاريخ","إجراءات"]},
+ updates:{title:"تقارير التحديثات",description:"كل تحديث للشبكة في تقرير مستقل مع عدد المسوقين وشيكات كل توكيل وإجمالياته.",headers:["تاريخ ووقت التحديث","نوع التحديث","الفترة","عدد المسوقين","مسوقون لديهم شيكات","عدد الشيكات","إجمالي قيمة الشيكات","التقرير"]}
 };
-const state={tab:"checks",page:{checks:1,commissions:1,withdrawals:1,products:1,invoices:1},loaded:{},data:{},pages:{},totals:{}};
+const state={tab:"checks",page:{checks:1,commissions:1,withdrawals:1,products:1,invoices:1,updates:1},loaded:{},data:{},pages:{},totals:{},selectedUpdate:"",updateDetail:null};
 const reportModels=new Map();let reportSeq=0,currentReport=null;
 const fmt=n=>Number(n||0).toLocaleString("en-US",{maximumFractionDigits:2});
 const money=n=>fmt(n)+" ج.م";
@@ -164,6 +168,15 @@ function makeModel(kind,x){
 function renderActions(kind,x){return actionButtons(makeModel(kind,x))}
 function currentReportModel(){
  const kind=state.tab,all=state.data[kind]||[];
+ if(kind==="updates"){
+  if(!state.selectedUpdate||!state.updateDetail){$("reportStatus").textContent="افتح تقرير تحديث أولًا قبل الطباعة أو المشاركة.";return null}
+  const d=state.updateDetail,r=d.run||{},s=d.summary||{},agencies=d.agency_summary||[];
+  const rows=(d.rows||[]).map(x=>[memberName(x),x.referral_code||"—","التوكيل "+String(x.account_position).padStart(2,"0"),fmt(x.check_count),money(x.check_amount)]);
+  const meta=[["وقت التحديث",date(r.update_at)],["نوع التحديث",r.update_type==="automatic"?"تلقائي":"يدوي"],["الفترة",dateOnly(r.week_start)+" — "+dateOnly(r.week_end)],["عدد المسوقين",fmt(s.unique_marketers)],["مسوقون لديهم شيكات",fmt(s.cheque_marketers)],["إجمالي عدد الشيكات",fmt(s.cheque_count)],["إجمالي قيمة الشيكات",money(s.total_cheque_amount)]];
+  const extra='<div class="paper-meta">'+agencies.map(a=>'<div><b>التوكيل '+String(a.account_position).padStart(2,"0")+'</b><div>'+fmt(a.marketers_with_cheques)+' مسوق · '+fmt(a.cheque_count)+' شيك · '+money(a.total_cheque_amount)+'</div></div>').join("")+'</div>';
+  const share=[configs.updates.title,...meta.map(x=>x[0]+": "+x[1]),"تفصيل التوكيلات:",...agencies.map(a=>"التوكيل "+a.account_position+": "+fmt(a.marketers_with_cheques)+" مسوق، "+fmt(a.cheque_count)+" شيك، "+money(a.total_cheque_amount)),...rows.map(x=>x.join(" | "))].join("\\n");
+  return paperModel("تقرير تحديث الشبكة",date(r.update_at),meta,["المسوق","الكود","التوكيل","عدد الشيكات","قيمة الشيكات"],rows,"إجمالي الشيكات: "+money(s.total_cheque_amount),share,extra);
+ }
  const pageSize=20;
  const alreadyPaged=(kind==="checks"||kind==="commissions");
  const pageRows=alreadyPaged?all:all.slice(((state.page[kind]||1)-1)*pageSize,(state.page[kind]||1)*pageSize);
@@ -230,6 +243,7 @@ function renderTable(rows,kind){
 function setHeader(kind){
  const cfg=configs[kind];$("reportHeading").textContent=cfg.title;$("reportDescription").textContent=cfg.description;
  $("checkDateFilter").classList.toggle("hide",kind!=="checks");
+ $("updateSummary").style.display=kind==="updates"?"grid":"none";
  $("reportHead").innerHTML="<tr>"+cfg.headers.map(h=>"<th>"+esc(h)+"</th>").join("")+"</tr>";
 }
 async function fetchJson(url){
@@ -243,7 +257,18 @@ async function loadActive(force=true){
  const kind=state.tab;setHeader(kind);$("reportStatus").textContent="جاري تحميل البيانات…";$("reportRows").innerHTML="";
  try{
   const q=$("globalSearch").value.trim();let d;
-  if(kind==="checks"){
+  if(kind==="updates"){
+   const u=new URL("/api/admin/commission-reports",location.origin);
+   if(state.selectedUpdate){
+    u.searchParams.set("action","update_report");u.searchParams.set("run_id",state.selectedUpdate);u.searchParams.set("page",String(state.page.updates||1));if(q)u.searchParams.set("q",q);
+    d=await fetchJson(u.toString());state.updateDetail=d;state.data.updates=d.rows||[];state.pages.updates=Number(d.pages||1);state.totals.updates=Number(d.total||0);
+    renderUpdateDetail(d);
+   }else{
+    u.searchParams.set("action","update_runs");
+    d=await fetchJson(u.toString());state.updateRuns=d.runs||[];state.data.updates=state.updateRuns;state.totals.updates=state.updateRuns.length;
+    renderUpdateRuns(state.updateRuns);
+   }
+  }else if(kind==="checks"){
    const u=new URL("/api/admin/commission-reports",location.origin);u.searchParams.set("action","checks");if($("checkDate").value)u.searchParams.set("date",$("checkDate").value);u.searchParams.set("page",String(state.page.checks||1));if(q)u.searchParams.set("q",q);
    d=await fetchJson(u.toString());if(d.date&&$("checkDate").value!==d.date)$("checkDate").value=d.date;state.data.checks=d.rows||[];state.pages.checks=Number(d.pages||1);state.totals.checks=Number(d.total||0);
    $("reportStatus").textContent="تقرير الشيكات لأحدث أسبوع متاح ("+$("checkDate").value+") — إجمالي المسوقين: "+state.totals.checks;
@@ -266,6 +291,35 @@ async function loadActive(force=true){
   state.loaded[kind]=true;
  }catch(e){if(e.message==="login_required")return;$("reportStatus").textContent=e.message||"تعذر تحميل التقرير";$("reportCount").textContent="تعذر التحميل";$("reportRows").innerHTML='<tr><td class="empty" colspan="'+configs[kind].headers.length+'">تعذر تحميل البيانات. حاول التحديث.</td></tr>';$("reportPager").innerHTML=""}
 }
+function renderUpdateRuns(runs){
+ $("updateSummary").style.display="none";
+ $("reportHeading").textContent="تقارير التحديثات";$("reportDescription").textContent="كل سطر يمثل تحديثًا مستقلًا. افتح التقرير لمعرفة المسوقين وشيكات كل توكيل وإجمالي كل توكيل.";
+ $("reportStatus").textContent="عدد التحديثات المسجلة: "+fmt(runs.length)+" — افتح أي تحديث لعرض تفاصيله.";
+ $("reportCount").textContent="التحديثات: "+fmt(runs.length);
+ $("reportHead").innerHTML="<tr>"+configs.updates.headers.map(h=>"<th>"+esc(h)+"</th>").join("")+"</tr>";
+ $("reportRows").innerHTML=runs.map(r=>'<tr><td>'+esc(date(r.update_at))+'</td><td>'+esc(r.update_type==="automatic"?"تلقائي":"يدوي")+'</td><td>'+esc(dateOnly(r.week_start)+" — "+dateOnly(r.week_end))+'</td><td>'+fmt(r.unique_marketers)+'</td><td>'+fmt(r.actual_cheque_marketers)+'</td><td>'+fmt(r.cheque_count)+'</td><td class="money">'+money(r.actual_total_amount)+'</td><td><button type="button" class="btn primary" data-update-id="'+esc(r.id)+'">عرض التقرير</button></td></tr>').join("")||'<tr><td class="empty" colspan="8">لا توجد تحديثات مسجلة.</td></tr>';
+ $("reportPager").innerHTML="";
+}
+function renderUpdateDetail(d){
+ const r=d.run||{},s=d.summary||{},agencies=Array.isArray(d.agency_summary)?d.agency_summary:[];
+ $("reportHeading").textContent="تقرير تحديث "+date(r.update_at);
+ $("reportDescription").textContent=(r.update_type==="automatic"?"تحديث تلقائي":"تحديث يدوي")+" — الفترة "+dateOnly(r.week_start)+" إلى "+dateOnly(r.week_end);
+ const sum=$("updateSummary");sum.style.display="grid";
+ sum.innerHTML='<button type="button" class="btn update-back" id="backToUpdates">← الرجوع إلى كل التحديثات</button><div class="update-cards">'+
+  '<div class="update-card"><b>عدد المسوقين في التقرير</b><strong>'+fmt(s.unique_marketers)+'</strong></div>'+
+  '<div class="update-card"><b>مسوقون لديهم شيكات</b><strong>'+fmt(s.cheque_marketers)+'</strong></div>'+
+  '<div class="update-card"><b>إجمالي عدد الشيكات</b><strong>'+fmt(s.cheque_count)+'</strong></div>'+
+  '<div class="update-card"><b>إجمالي قيمة الشيكات</b><strong>'+money(s.total_cheque_amount)+'</strong></div></div>'+
+  '<h3 style="margin:4px 0">تفصيل الشيكات حسب التوكيل</h3><div class="update-cards">'+agencies.map(a=>'<div class="update-card agency-card"><b>التوكيل '+fmt(a.account_position).padStart(2,"0")+'</b><strong>'+money(a.total_cheque_amount)+'</strong><div class="muted-small">المسوقون المستحقون: '+fmt(a.marketers_with_cheques)+' · عدد الشيكات: '+fmt(a.cheque_count)+'</div></div>').join("")+'</div>';
+ $("backToUpdates").onclick=()=>{state.selectedUpdate="";state.updateDetail=null;state.page.updates=1;loadActive()};
+ $("reportStatus").textContent="تفاصيل التحديث — عدد صفوف المسوق/التوكيل: "+fmt(d.total)+". إجماليات التوكيلات لا تتغير عند البحث.";
+ $("reportCount").textContent="مسوق/توكيل: "+fmt(d.total);
+ $("reportHead").innerHTML="<tr>"+["المسوق","كود المسوق","التوكيل","عدد الشيكات","إجمالي قيمة الشيكات"].map(h=>"<th>"+esc(h)+"</th>").join("")+"</tr>";
+ $("reportRows").innerHTML=(d.rows||[]).map(x=>'<tr><td><b>'+esc(x.name)+'</b></td><td>'+esc(x.referral_code||"—")+'</td><td>التوكيل '+fmt(x.account_position).padStart(2,"0")+'</td><td class="count">'+fmt(x.check_count)+'</td><td class="money">'+money(x.check_amount)+'</td></tr>').join("")||'<tr><td class="empty" colspan="5">لا توجد شيكات لهذا التحديث.</td></tr>';
+ const pager=$("reportPager");pager.innerHTML="";
+ const prev=document.createElement("button"),label=document.createElement("span"),next=document.createElement("button");prev.className=next.className="btn";prev.textContent="السابق";next.textContent="التالي";prev.disabled=d.page<=1;next.disabled=d.page>=d.pages;prev.onclick=()=>{state.page.updates=Math.max(1,Number(d.page)-1);loadActive()};next.onclick=()=>{state.page.updates=Number(d.page)+1;loadActive()};label.textContent="صفحة "+d.page+" من "+Math.max(1,d.pages);pager.append(prev,label,next);
+}
+document.addEventListener("click",e=>{const b=e.target.closest("[data-update-id]");if(!b)return;state.selectedUpdate=b.dataset.updateId;state.page.updates=1;loadActive()});
 function openReport(model,action){
  currentReport=model;$("reportPaper").innerHTML=model.html;$("reportModal").classList.add("open");
  if(action==="whatsapp"){shareWhatsApp(model);return}
@@ -294,7 +348,7 @@ $("globalSearch").addEventListener("keydown",e=>{if(e.key==="Enter")$("searchBtn
 $("checkDate").addEventListener("change",()=>{if(state.tab==="checks"){state.page.checks=1;loadActive()}});
 document.querySelectorAll("[data-tab]").forEach(button=>button.addEventListener("click",()=>{
  document.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b===button));
- state.tab=button.dataset.tab;state.page[state.tab]=1;loadActive();
+ state.tab=button.dataset.tab;state.page[state.tab]=1;if(state.tab!=="updates"){state.selectedUpdate="";state.updateDetail=null}loadActive();
 }));
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("reportModal").classList.contains("open"))closeReport()});
 $("checkDate").value="";
