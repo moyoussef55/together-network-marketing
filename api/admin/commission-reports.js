@@ -21,7 +21,17 @@ export default async function handler(req, res) {
              COALESCE(s.unique_marketers,0)::int AS unique_marketers,
              COALESCE(s.actual_cheque_marketers,0)::int AS actual_cheque_marketers,
              COALESCE(s.cheque_count,0)::int AS cheque_count,
-             COALESCE(s.actual_total_amount,0)::numeric AS actual_total_amount
+             COALESCE(s.actual_total_amount,0)::numeric AS actual_total_amount,
+             (SELECT COALESCE(json_agg(a ORDER BY a.account_position),'[]'::json) FROM (
+                SELECT rr.account_position,
+                       COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount>0)::int AS marketers_with_cheques,
+                       COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_rows,
+                       FLOOR(COALESCE(SUM(rr.check_amount),0)/1500)::int AS cheque_count,
+                       COALESCE(SUM(rr.check_amount),0)::numeric AS total_cheque_amount
+                  FROM network_bv_update_report_rows rr
+                 WHERE rr.update_run_id=r.id
+                 GROUP BY rr.account_position
+             ) a) AS agency_totals
         FROM network_bv_update_runs r
         LEFT JOIN LATERAL (
           SELECT COUNT(DISTINCT rr.member_id)::int AS unique_marketers,
@@ -94,12 +104,13 @@ export default async function handler(req, res) {
        GROUP BY p.id,p.referral_code,p.display_name,p.first_name,p.second_name,p.third_name,p.fourth_name,rr.account_position
     `;
     const count = await db.query("SELECT COUNT(*)::int AS total FROM (" + base + ") report_rows", params);
-    const rows = await db.query("SELECT * FROM (" + base + ") report_rows ORDER BY account_position ASC,check_amount DESC,name ASC LIMIT " + limit + " OFFSET " + offset, params);
+    const reportLimit = String(req.query?.all || "") === "1" ? 1000 : limit;
+    const rows = await db.query("SELECT * FROM (" + base + ") report_rows ORDER BY account_position ASC,check_amount DESC,name ASC LIMIT " + reportLimit + " OFFSET " + (reportLimit===1000?0:offset), params);
     return res.json({
       ok:true,action,run:runResult.rows[0],summary:summaryResult.rows[0] || {},
       agency_summary:agenciesResult.rows,
-      total:Number(count.rows[0]?.total||0),page,page_size:limit,
-      pages:Math.ceil(Number(count.rows[0]?.total||0)/limit),rows:rows.rows
+      total:Number(count.rows[0]?.total||0),page,page_size:reportLimit,
+      pages:Math.ceil(Number(count.rows[0]?.total||0)/reportLimit),rows:rows.rows
     });
   }
 
