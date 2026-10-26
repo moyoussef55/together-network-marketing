@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   if (action === "checks") {
     let picked = String(req.query?.date || "").trim();
     if (!picked) {
-      const latest = await db.query(`SELECT MAX(s.week_end)::date AS latest_week_end FROM network_bv_settlements s WHERE s.check_amount > 0`);
+      const latest = await db.query(`SELECT MAX(s.week_end)::date AS latest_week_end FROM network_bv_settlements s WHERE s.check_amount > 0 AND s.settled_at <= now()`);
       picked = String(latest.rows[0]?.latest_week_end || "").slice(0, 10);
     }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(picked)) {
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
         SELECT s.member_id
           FROM network_bv_settlements s
           JOIN app_profiles p ON p.id=s.member_id
-         WHERE s.check_amount > 0 AND $1::date BETWEEN s.week_start AND s.week_end
+         WHERE s.check_amount > 0 AND s.settled_at <= now() AND $1::date BETWEEN s.week_start AND s.week_end
            AND p.deleted_at IS NULL ${search}
          GROUP BY s.member_id
         HAVING sum(s.check_amount) > 0
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
              string_agg(DISTINCT s.account_position::text, ', ' ORDER BY s.account_position::text) AS positions
         FROM network_bv_settlements s
         JOIN app_profiles p ON p.id=s.member_id
-       WHERE s.check_amount > 0 AND $1::date BETWEEN s.week_start AND s.week_end
+       WHERE s.check_amount > 0 AND s.settled_at <= now() AND $1::date BETWEEN s.week_start AND s.week_end
          AND p.deleted_at IS NULL ${search}
        GROUP BY p.id,p.referral_code,p.display_name,p.first_name,p.second_name,p.third_name,p.fourth_name
       HAVING sum(s.check_amount)>0
