@@ -244,10 +244,9 @@ async function loadActive(force=true){
  try{
   const q=$("globalSearch").value.trim();let d;
   if(kind==="checks"){
-   if(!$("checkDate").value)throw new Error("اختَر تاريخًا داخل أسبوع الشيكات.");
-   const u=new URL("/api/admin/commission-reports",location.origin);u.searchParams.set("action","checks");u.searchParams.set("date",$("checkDate").value);u.searchParams.set("page",String(state.page.checks||1));if(q)u.searchParams.set("q",q);
-   d=await fetchJson(u.toString());state.data.checks=d.rows||[];state.pages.checks=Number(d.pages||1);state.totals.checks=Number(d.total||0);
-   $("reportStatus").textContent="تقرير الشيكات داخل الأسبوع المحدد — إجمالي المسوقين: "+state.totals.checks;
+   const u=new URL("/api/admin/commission-reports",location.origin);u.searchParams.set("action","checks");if($("checkDate").value)u.searchParams.set("date",$("checkDate").value);u.searchParams.set("page",String(state.page.checks||1));if(q)u.searchParams.set("q",q);
+   d=await fetchJson(u.toString());if(d.date&&$("checkDate").value!==d.date)$("checkDate").value=d.date;state.data.checks=d.rows||[];state.pages.checks=Number(d.pages||1);state.totals.checks=Number(d.total||0);
+   $("reportStatus").textContent="تقرير الشيكات لأحدث أسبوع متاح ("+$("checkDate").value+") — إجمالي المسوقين: "+state.totals.checks;
    $("reportCount").textContent="المسوقون: "+state.totals.checks;
    $("reportRows").innerHTML=(d.rows||[]).map(checkRows).join("")||'<tr><td class="empty" colspan="9">لا توجد شيكات في الأسبوع المحدد.</td></tr>';
    $("reportPager").innerHTML="";const pg=$("reportPager"),prev=document.createElement("button"),label=document.createElement("span"),next=document.createElement("button");prev.className=next.className="btn";prev.textContent="السابق";next.textContent="التالي";prev.disabled=d.page<=1;next.disabled=d.page>=d.pages;prev.onclick=()=>{state.page.checks=Math.max(1,Number(d.page)-1);loadActive()};next.onclick=()=>{state.page.checks=Number(d.page)+1;loadActive()};label.textContent="صفحة "+d.page+" من "+Math.max(1,d.pages);pg.append(prev,label,next);
@@ -298,7 +297,7 @@ document.querySelectorAll("[data-tab]").forEach(button=>button.addEventListener(
  state.tab=button.dataset.tab;state.page[state.tab]=1;loadActive();
 }));
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("reportModal").classList.contains("open"))closeReport()});
-$("checkDate").value=new Date().toISOString().slice(0,10);
+$("checkDate").value="";
 loadActive();
 </script>
 <script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=620"></script>
