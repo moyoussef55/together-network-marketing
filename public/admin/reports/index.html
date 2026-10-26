@@ -173,7 +173,7 @@ function currentReportModel(){
   const d=state.updateDetail,r=d.run||{},s=d.summary||{},agencies=d.agency_summary||[];
   const rows=(d.rows||[]).map(x=>[memberName(x),x.referral_code||"—","التوكيل "+String(x.account_position).padStart(2,"0"),fmt(x.check_count),money(x.check_amount)]);
   const meta=[["وقت التحديث",date(r.update_at)],["نوع التحديث",r.update_type==="automatic"?"تلقائي":"يدوي"],["الفترة",dateOnly(r.week_start)+" — "+dateOnly(r.week_end)],["عدد المسوقين",fmt(s.unique_marketers)],["مسوقون لديهم شيكات",fmt(s.cheque_marketers)],["إجمالي عدد الشيكات",fmt(s.cheque_count)],["إجمالي قيمة الشيكات",money(s.total_cheque_amount)]];
-  const extra='<div class="paper-meta">'+agencies.map(a=>'<div><b>التوكيل '+String(a.account_position).padStart(2,"0")+'</b><div>'+fmt(a.marketers_with_cheques)+' مسوق · '+fmt(a.cheque_count)+' شيك · '+money(a.total_cheque_amount)+'</div></div>').join("")+'</div>';
+  const extra='<div class="paper-meta">'+agencies.map(a=>'<div><b>التوكيل '+String(a.account_position).padStart(2,"0")+'</b><div>'+fmt(a.marketers_in_agency)+' مسوق بالتوكيل · '+fmt(a.marketers_with_cheques)+' مستحق · '+fmt(a.cheque_count)+' شيك · '+money(a.total_cheque_amount)+'</div></div>').join("")+'</div>';
   const share=[configs.updates.title,...meta.map(x=>x[0]+": "+x[1]),"تفصيل التوكيلات:",...agencies.map(a=>"التوكيل "+a.account_position+": "+fmt(a.marketers_with_cheques)+" مسوق، "+fmt(a.cheque_count)+" شيك، "+money(a.total_cheque_amount)),...rows.map(x=>x.join(" | "))].join("\\n");
   return paperModel("تقرير تحديث الشبكة",date(r.update_at),meta,["المسوق","الكود","التوكيل","عدد الشيكات","قيمة الشيكات"],rows,"إجمالي الشيكات: "+money(s.total_cheque_amount),share,extra);
  }
@@ -310,7 +310,7 @@ function renderUpdateDetail(d){
   '<div class="update-card"><b>مسوقون لديهم شيكات</b><strong>'+fmt(s.cheque_marketers)+'</strong></div>'+
   '<div class="update-card"><b>إجمالي عدد الشيكات</b><strong>'+fmt(s.cheque_count)+'</strong></div>'+
   '<div class="update-card"><b>إجمالي قيمة الشيكات</b><strong>'+money(s.total_cheque_amount)+'</strong></div></div>'+
-  '<h3 style="margin:4px 0">تفصيل الشيكات حسب التوكيل</h3><div class="update-cards">'+agencies.map(a=>'<div class="update-card agency-card"><b>التوكيل '+fmt(a.account_position).padStart(2,"0")+'</b><strong>'+money(a.total_cheque_amount)+'</strong><div class="muted-small">المسوقون المستحقون: '+fmt(a.marketers_with_cheques)+' · عدد الشيكات: '+fmt(a.cheque_count)+'</div></div>').join("")+'</div>';
+  '<h3 style="margin:4px 0">تفصيل الشيكات حسب التوكيل</h3><div class="update-cards">'+agencies.map(a=>'<div class="update-card agency-card"><b>التوكيل '+fmt(a.account_position).padStart(2,"0")+'</b><strong>'+money(a.total_cheque_amount)+'</strong><div class="muted-small">المسوقون في التوكيل: '+fmt(a.marketers_in_agency)+' · المستحقون: '+fmt(a.marketers_with_cheques)+' · عدد الشيكات: '+fmt(a.cheque_count)+'</div></div>').join("")+'</div>';
  $("backToUpdates").onclick=()=>{state.selectedUpdate="";state.updateDetail=null;state.page.updates=1;loadActive()};
  $("reportStatus").textContent="تفاصيل التحديث — عدد صفوف المسوق/التوكيل: "+fmt(d.total)+". إجماليات التوكيلات لا تتغير عند البحث.";
  $("reportCount").textContent="مسوق/توكيل: "+fmt(d.total);
