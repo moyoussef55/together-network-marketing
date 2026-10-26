@@ -35,7 +35,6 @@ jobs:
           set -euo pipefail
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' public/login.html
           grep -Fq 'textContent=lang==="ar"?"تذكرني":"Remember me"' public/login.html
-          grep -Fq 'rememberMe:$(("rememberMe"))' /dev/null 2>/dev/null || true
           grep -Fq '<span>تذكرني</span>' public/tn-admin-gateway-7f3c9b2d/index.html
           grep -Fq 'rememberMe:$("rememberMe").checked' public/tn-admin-gateway-7f3c9b2d/index.html
           grep -Fq 'createNetworkSession(res,p.id,b.rememberMe === true)' api/marketer-access.js
