@@ -13,7 +13,7 @@ export default async function(req,res) {
     if (!row || row.email !== email || !await safePasswordCheck(password,row.password_salt,row.password_hash)) {
       return res.status(401).json({ ok:false, error:"invalid_credentials" });
     }
-    await issueAdminSession(res);
+    await issueAdminSession(res, b.rememberMe === true);
     return res.json({ ok:true });
   } catch (e) { return res.status(500).json({ ok:false, error:"admin_login_failed" }); }
 }
