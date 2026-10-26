@@ -26,7 +26,7 @@ export default async function handler(req, res) {
                 SELECT rr.account_position,
                        COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount>0)::int AS marketers_with_cheques,
                        COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_rows,
-                       COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_count,
+                       COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_count,
                        COALESCE(SUM(rr.check_amount),0)::numeric AS total_cheque_amount
                   FROM network_bv_update_report_rows rr
                  WHERE rr.update_run_id=r.id
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
         LEFT JOIN LATERAL (
           SELECT COUNT(DISTINCT rr.member_id)::int AS unique_marketers,
                  COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount > 0)::int AS actual_cheque_marketers,
-                 COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_count,
+                 COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_count,
                  COALESCE(SUM(rr.check_amount),0)::numeric AS actual_total_amount
             FROM network_bv_update_report_rows rr
            WHERE rr.update_run_id=r.id
@@ -63,7 +63,7 @@ export default async function handler(req, res) {
     const summaryResult = await db.query(`
       SELECT COUNT(DISTINCT rr.member_id)::int AS unique_marketers,
              COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount > 0)::int AS cheque_marketers,
-             COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_count,
+             COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_count,
              COALESCE(SUM(rr.check_amount),0)::numeric AS total_cheque_amount
         FROM network_bv_update_report_rows rr
        WHERE rr.update_run_id=$1
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
              COUNT(DISTINCT rr.member_id)::int AS marketers_in_agency,
              COUNT(DISTINCT rr.member_id) FILTER (WHERE rr.check_amount > 0)::int AS marketers_with_cheques,
              COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_rows,
-             COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS cheque_count,
+             COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS cheque_count,
              COALESCE(SUM(rr.check_amount),0)::numeric AS total_cheque_amount
         FROM network_bv_update_report_rows rr
        WHERE rr.update_run_id=$1
@@ -93,7 +93,7 @@ export default async function handler(req, res) {
              COALESCE(NULLIF(p.display_name,''),concat_ws(' ',p.first_name,p.second_name,p.third_name,p.fourth_name),'مسوق') AS name,
              rr.account_position,
              SUM(rr.check_amount)::numeric AS check_amount,
-             COUNT(*) FILTER (WHERE rr.check_amount > 0)::int AS check_count,
+             COUNT(*) FILTER (WHERE rr.check_amount>0)::int AS check_count,
              SUM(rr.right_bv_before)::numeric AS right_bv_before,
              SUM(rr.left_bv_before)::numeric AS left_bv_before,
              SUM(rr.matched_bv)::numeric AS matched_bv,
