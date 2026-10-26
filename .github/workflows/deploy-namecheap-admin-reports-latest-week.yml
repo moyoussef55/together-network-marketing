@@ -6,6 +6,7 @@ on:
       - namecheap-runtime-prep
     paths:
       - "public/admin/reports/index.html"
+      - "public/admin/reports/updates.html"
       - "api/admin/commission-reports.js"
       - ".github/workflows/deploy-namecheap-admin-reports-latest-week.yml"
   workflow_dispatch:
@@ -37,7 +38,11 @@ jobs:
           test -s "$API"
           grep -Fq 'latest_week_end' "$API"
           grep -Fq 'date:picked' "$API"
-          sha256sum "$PAGE" "$API"
+          UPDATES="public/admin/reports/updates.html"
+          test -s "$UPDATES"
+          grep -Fq 'تقارير كل تحديث' "$UPDATES"
+          grep -Fq 'agency_summary' "$UPDATES"
+          sha256sum "$PAGE" "$API" "$UPDATES"
 
       - name: Pin the Namecheap server host key
         shell: bash
@@ -79,6 +84,19 @@ jobs:
           API="api/admin/commission-reports.js"
           REMOTE_TMP="/home/togeiign/.admin-commission-reports-api.deploy-${DEPLOY_RUN_ID}"
           ssh -p "$NAMECHEAP_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" "umask 077; cat > '$REMOTE_TMP'" < "$API"
+
+      - name: Transfer per-update reports page to a temporary file
+        shell: bash
+        env:
+          NAMECHEAP_SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          NAMECHEAP_SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          NAMECHEAP_SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          PAGE="public/admin/reports/updates.html"
+          REMOTE_TMP="/home/togeiign/.admin-reports-updates.html.deploy-${DEPLOY_RUN_ID}"
+          ssh -p "$NAMECHEAP_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" "umask 077; cat > '$REMOTE_TMP'" < "$PAGE"
 
       - name: Back up and atomically install the page
         shell: bash
@@ -164,5 +182,51 @@ jobs:
           sha256sum "$TARGET"
           echo "BACKUP_CREATED=$BACKUP"
           echo "NAMECHEAP_ADMIN_REPORTS_API_DEPLOY_OK"
+          rm -f "$STAGED" "$INCOMING"
+          REMOTE
+
+      - name: Back up and atomically install per-update reports page
+        shell: bash
+        env:
+          NAMECHEAP_SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          NAMECHEAP_SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          NAMECHEAP_SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          DEPLOY_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$NAMECHEAP_SSH_PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$NAMECHEAP_SSH_USER@$NAMECHEAP_SSH_HOST" "bash -s -- '$DEPLOY_RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          TARGET_DIR="$ROOT/public/admin/reports"
+          TARGET="$TARGET_DIR/updates.html"
+          STAGED="/home/togeiign/.admin-reports-updates.html.deploy-$RUN_ID"
+          INCOMING="$TARGET_DIR/.updates.html.incoming-$RUN_ID"
+          test -d "$ROOT"
+          test -d "$TARGET_DIR"
+          test -s "$STAGED"
+          grep -Fq 'تقارير كل تحديث' "$STAGED"
+          cp "$STAGED" "$INCOMING"
+          if test -f "$TARGET"; then
+            test ! -L "$TARGET"
+            chmod --reference="$TARGET" "$INCOMING"
+            BACKUP="$TARGET.BACKUP-before-update-reports-sync-$(date +%Y%m%d-%H%M%S)"
+            cp -p "$TARGET" "$BACKUP"
+          else
+            chmod 644 "$INCOMING"
+            BACKUP=""
+          fi
+          if ! mv -f "$INCOMING" "$TARGET"; then
+            if test -n "$BACKUP"; then cp -p "$BACKUP" "$TARGET"; fi
+            exit 1
+          fi
+          if ! cmp -s "$STAGED" "$TARGET"; then
+            if test -n "$BACKUP"; then cp -p "$BACKUP" "$TARGET"; else rm -f "$TARGET"; fi
+            echo "VERIFY_FAILED; restored prior state" >&2
+            exit 1
+          fi
+          sha256sum "$TARGET"
+          if test -n "$BACKUP"; then echo "BACKUP_CREATED=$BACKUP"; fi
+          echo "NAMECHEAP_PER_UPDATE_REPORTS_PAGE_DEPLOY_OK"
           rm -f "$STAGED" "$INCOMING"
           REMOTE
