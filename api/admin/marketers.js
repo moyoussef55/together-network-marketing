@@ -1,6 +1,7 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
 import { requireAdminSession } from "../../lib/admin-auth.js";
+import { hashNetworkPassword } from "../../lib/network-auth.js";
 export const access = "public"; export const methods=["GET","POST"];
 
 const body=req=>typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
@@ -173,7 +174,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
  }
  if(action==="password"){
   const pw=String(b.password||""); if(pw.length<6)return res.status(400).json({error:"password_too_short"});
-  const h=hash(pw);
+  const h=await hashNetworkPassword(pw);
   if(b.kind==="wallet"){await db.query("UPDATE app_profiles SET wallet_password_hash=$2 WHERE id=$1",[id,h]);await db.query("UPDATE network_agent_applications SET wallet_password_hash=$2 WHERE member_id=$1",[id,h]).catch(()=>{});}
   else {await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1",[id,h]);await db.query("UPDATE network_agent_applications SET password_hash=$2 WHERE member_id=$1",[id,h]).catch(()=>{});await db.query("DELETE FROM network_auth_sessions WHERE user_id=$1",[id]).catch(()=>{});}
   await audit(actor,"change_"+(b.kind==="wallet"?"wallet":"login")+"_password",id); return res.json({ok:true});
