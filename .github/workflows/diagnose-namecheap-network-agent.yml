@@ -63,7 +63,61 @@ jobs:
 
           echo "=== PROCESS SUMMARY (no command arguments) ==="
           ps -eo user=,comm= 2>/dev/null | grep -Ei 'node|passenger|npm' | sort | uniq -c | head -n 20 || true
-          echo "=== DIAGNOSTIC COMPLETE; no files changed, no restart requested ==="
+          echo "=== READ-ONLY DATABASE CONNECTION TEST ==="
+          cd "$ROOT" || exit 1
+          NODE="/home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/node"
+          if ! test -x "$NODE"; then NODE="/home/togeiign/nodevenv/marketing-network/20/bin/node"; fi
+          if ! test -x "$NODE"; then NODE="$(command -v node || true)"; fi
+          if ! test -x "${NODE:-/nonexistent}"; then
+            echo "DB_TEST_FAILED=NODE_RUNTIME_NOT_FOUND"
+            exit 2
+          fi
+          "$NODE" --input-type=module <<'NODETEST'
+          import path from "node:path";
+          import dotenv from "dotenv";
+          import pg from "pg";
+          const ROOT = "/home/togeiign/marketing-network";
+          dotenv.config({ path: path.join(ROOT, ".env"), override: false, quiet: true });
+          const url = process.env.DATABASE_URL;
+          console.log("DOTENV_FILE_PRESENT=" + (await import("node:fs/promises").then(fs => fs.access(path.join(ROOT, ".env")).then(() => "yes").catch(() => "no"))));
+          console.log("DATABASE_URL_AVAILABLE=" + (url ? "yes" : "no"));
+          if (!url) {
+            console.log("DB_TEST_FAILED=DATABASE_URL_NOT_AVAILABLE_IN_SERVER_ENV_OR_DOTENV");
+            process.exit(3);
+          }
+          const schema = String(process.env.DB_SCHEMA || "public").trim();
+          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
+            console.log("DB_TEST_FAILED=INVALID_DB_SCHEMA_SETTING");
+            process.exit(4);
+          }
+          const sslEnabled = !["0", "false", "no"].includes(String(process.env.DATABASE_SSL || "true").toLowerCase());
+          const pool = new pg.Pool({
+            connectionString: url,
+            options: `-c search_path=${schema},public -c statement_timeout=5000`,
+            ssl: sslEnabled ? { rejectUnauthorized: !["0", "false", "no"].includes(String(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED || "true").toLowerCase()) } : false,
+            max: 1,
+            connectionTimeoutMillis: 10000,
+            idleTimeoutMillis: 1000
+          });
+          try {
+            const result = await pool.query("SELECT 1 AS ok, current_database() AS database_name, current_schema() AS schema_name, current_setting('server_version') AS server_version");
+            const row = result.rows[0];
+            console.log("DB_QUERY_OK=" + (row.ok === 1 ? "yes" : "no"));
+            console.log("DATABASE_NAME=" + row.database_name);
+            console.log("ACTIVE_SCHEMA=" + row.schema_name);
+            console.log("POSTGRES_VERSION=" + row.server_version);
+            console.log("EXPECTED_HATCHABLE_DB_MATCH=" + (row.database_name === "hatchable_apps" && row.schema_name === "app_a8bd59e089a78f6d" ? "yes" : "no"));
+            if (row.ok !== 1 || row.database_name !== "hatchable_apps" || row.schema_name !== "app_a8bd59e089a78f6d") process.exitCode = 5;
+          } catch (error) {
+            console.log("DB_TEST_FAILED=" + String(error?.code || error?.name || "QUERY_ERROR"));
+            process.exitCode = 6;
+          } finally {
+            await pool.end().catch(() => {});
+          }
+          NODETEST
+          echo "=== PUBLIC HEALTH ENDPOINT ==="
+          curl --silent --show-error --max-time 10 -i https://marketing.together-v-egp.com/healthz | head -n 25 || true
+          echo "=== DIAGNOSTIC COMPLETE; no production data changed ==="
           REMOTE
 
 # Read-only diagnostic trigger after the verified Hatchable API sync on 2026-10-24.
