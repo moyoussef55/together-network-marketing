@@ -11,6 +11,17 @@ on:
       - "lib/network-auth.js"
       - "api/admin/login.js"
       - "lib/admin-auth.js"
+      - "api/marketer-password-reset.js"
+      - "api/admin/password-reset.js"
+      - "api/admin/marketers.js"
+      - "api/network/register-agent.js"
+      - "api/admin/register-agent.js"
+      - "api/marketer/withdrawals.js"
+      - "api/agent-document.js"
+      - "api/network/agent.js"
+      - "lib/agent-welcome-email.js"
+      - "server.js"
+      - "package.json"
       - ".github/workflows/deploy-namecheap-remember-me.yml"
   workflow_dispatch:
 
@@ -56,6 +67,7 @@ jobs:
           node --check api/network/agent.js
           node --check lib/agent-welcome-email.js
           node --check server.js
+          node -e 'JSON.parse(require("node:fs").readFileSync("package.json","utf8"))'
 
       - name: Pin the verified Namecheap SSH host key
         shell: bash
@@ -71,6 +83,16 @@ jobs:
         uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Verify Namecheap npm runtime before staging
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "test -x /home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/npm && /home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/npm --version"
 
       - name: Transfer reviewed security files to remote staging
         shell: bash
@@ -98,6 +120,7 @@ jobs:
             "api/network/agent.js"
             "lib/agent-welcome-email.js"
             "server.js"
+            "package.json"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
           tar -czf - "${FILES[@]}" | ssh \
@@ -148,6 +171,7 @@ jobs:
             "api/network/agent.js"
             "lib/agent-welcome-email.js"
             "server.js"
+            "package.json"
           )
           test -d "$ROOT"
           for REL in "${FILES[@]}"; do
@@ -203,6 +227,13 @@ jobs:
               exit 1
             fi
           done
+          NPM="/home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/npm"
+          if ! (cd "$ROOT" && "$NPM" install --omit=dev --no-audit --no-fund); then
+            rollback
+            (cd "$ROOT" && "$NPM" install --omit=dev --no-audit --no-fund) || echo "DEPENDENCY_ROLLBACK_WARNING" >&2
+            echo "DEPENDENCY_INSTALL_FAILED: restored prior files" >&2
+            exit 1
+          fi
           mkdir -p "$ROOT/tmp"
           touch "$ROOT/tmp/restart.txt"
           echo "=== LIVE FILE HASHES ==="
