@@ -49,6 +49,8 @@ jobs:
           if test -d "$ROOT"; then
             stat -c '%n | size=%s | modified=%y' "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
             sha256sum "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
+            echo "=== INSTALLED DEPENDENCY VERSIONS ==="
+            (cd "$ROOT" && npm ls --depth=0 express multer nodemailer pg 2>&1 || true) | head -n 70
             echo "=== RESTART MARKER ==="
             stat -c '%n | modified=%y' "$ROOT/tmp/restart.txt" 2>&1 || true
           else
