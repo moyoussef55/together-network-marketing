@@ -21,6 +21,8 @@ jobs:
     steps:
       - name: Pin Namecheap host key
         shell: bash
+        env:
+          NAMECHEAP_SSH_KNOWN_HOSTS: ${{ secrets.NAMECHEAP_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
