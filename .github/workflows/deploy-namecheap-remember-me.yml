@@ -53,6 +53,7 @@ jobs:
           node --check api/admin/register-agent.js
           node --check api/marketer/withdrawals.js
           node --check api/agent-document.js
+          node --check api/network/agent.js
           node --check lib/agent-welcome-email.js
 
       - name: Pin the verified Namecheap SSH host key
@@ -93,6 +94,7 @@ jobs:
             "api/admin/register-agent.js"
             "api/marketer/withdrawals.js"
             "api/agent-document.js"
+            "api/network/agent.js"
             "lib/agent-welcome-email.js"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
@@ -141,6 +143,7 @@ jobs:
             "api/admin/register-agent.js"
             "api/marketer/withdrawals.js"
             "api/agent-document.js"
+            "api/network/agent.js"
             "lib/agent-welcome-email.js"
           )
           test -d "$ROOT"
