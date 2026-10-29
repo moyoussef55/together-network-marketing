@@ -50,19 +50,20 @@ export default async function(req, res) {
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = await passwordHash(password, salt);
       const changed = await db.query(
-        `WITH claimed AS (
-           UPDATE network_admin_password_resets
-              SET used_at=now()
+        `WITH candidate AS (
+           SELECT id
+             FROM network_admin_password_resets
             WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now()
-            RETURNING id
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
          ),
          updated AS (
            UPDATE network_admin_credentials
               SET password_hash=$2,password_salt=$3,updated_at=now()
-            WHERE id=1 AND EXISTS (SELECT 1 FROM claimed)
+            WHERE id=1 AND EXISTS (SELECT 1 FROM candidate)
             RETURNING id
          ),
-         invalidated AS (
+         consumed AS (
            UPDATE network_admin_password_resets SET used_at=now()
             WHERE used_at IS NULL AND EXISTS (SELECT 1 FROM updated)
             RETURNING id
