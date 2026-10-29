@@ -28,6 +28,7 @@ jobs:
           curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi '^strict-transport-security: max-age=31536000'
           curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi '^x-frame-options: SAMEORIGIN'
           curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi '^permissions-policy: geolocation=(), camera=(self), microphone=(self)'
+          curl --silent --show-error --head http://127.0.0.1:3000/ | grep -qi "^content-security-policy:.*object-src.*none"
           curl --silent --fail http://127.0.0.1:3000/login > /tmp/together-login.html
           grep -qi '<html' /tmp/together-login.html
           code=$(curl --silent --output /tmp/together-api-response.json --write-out '%{http_code}' http://127.0.0.1:3000/api/admin/login)
