@@ -9,6 +9,7 @@ on:
       - "public/tn-admin-gateway-7f3c9b2d/index.html"
       - "api/marketer-access.js"
       - "lib/network-auth.js"
+      - "lib/login-rate-limit.js"
       - "api/admin/login.js"
       - "lib/admin-auth.js"
       - "api/marketer-password-reset.js"
@@ -56,9 +57,10 @@ jobs:
           grep -Fq "interval '30 days' ELSE interval '30 minutes'" lib/admin-auth.js
           node --check api/marketer-access.js
           node --check lib/network-auth.js
+          node --check lib/login-rate-limit.js
           node --check api/admin/login.js
           node --check lib/admin-auth.js
-          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html api/marketer-access.js lib/network-auth.js api/admin/login.js lib/admin-auth.js api/marketer-password-reset.js api/admin/password-reset.js api/admin/marketers.js api/network/register-agent.js api/admin/register-agent.js api/marketer/withdrawals.js api/agent-document.js lib/agent-welcome-email.js
+          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html api/marketer-access.js lib/network-auth.js lib/login-rate-limit.js api/admin/login.js lib/admin-auth.js api/marketer-password-reset.js api/admin/password-reset.js api/admin/marketers.js api/network/register-agent.js api/admin/register-agent.js api/marketer/withdrawals.js api/agent-document.js lib/agent-welcome-email.js
           node --check api/marketer-password-reset.js
           node --check api/admin/password-reset.js
           node --check api/admin/marketers.js
@@ -110,6 +112,7 @@ jobs:
             "public/tn-admin-gateway-7f3c9b2d/index.html"
             "api/marketer-access.js"
             "lib/network-auth.js"
+            "lib/login-rate-limit.js"
             "api/admin/login.js"
             "lib/admin-auth.js"
             "api/marketer-password-reset.js"
@@ -161,6 +164,7 @@ jobs:
             "public/tn-admin-gateway-7f3c9b2d/index.html"
             "api/marketer-access.js"
             "lib/network-auth.js"
+            "lib/login-rate-limit.js"
             "api/admin/login.js"
             "lib/admin-auth.js"
             "api/marketer-password-reset.js"
