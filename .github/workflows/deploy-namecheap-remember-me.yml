@@ -230,9 +230,9 @@ jobs:
             fi
           done
           NPM="/home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/npm"
-          if ! (cd "$ROOT" && "$NPM" install --omit=dev --no-audit --no-fund); then
+          if ! (cd "$ROOT" && "$NPM" --prefix "$ROOT" install --omit=dev --no-audit --no-fund); then
             rollback
-            (cd "$ROOT" && "$NPM" install --omit=dev --no-audit --no-fund) || echo "DEPENDENCY_ROLLBACK_WARNING" >&2
+            (cd "$ROOT" && "$NPM" --prefix "$ROOT" install --omit=dev --no-audit --no-fund) || echo "DEPENDENCY_ROLLBACK_WARNING" >&2
             echo "DEPENDENCY_INSTALL_FAILED: restored prior files" >&2
             exit 1
           fi
