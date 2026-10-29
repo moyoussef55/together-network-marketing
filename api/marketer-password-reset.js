@@ -57,22 +57,43 @@ export default async function(req,res) {
     const password = String(b.password || "");
     if (!/^[a-f0-9]{64}$/i.test(token)) return res.status(400).json({ error: "invalid_or_expired_token" });
     if (password.length < 8 || password.length > 200) return res.status(400).json({ error: "password_too_short", min_length: 8 });
-    const q = await db.query(
-      "SELECT id,user_id FROM marketer_password_resets WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now() LIMIT 1",
-      [digest(token)]
-    );
-    const reset = q.rows[0];
-    if (!reset) return res.status(400).json({ error: "invalid_or_expired_token" });
-    const profile = await db.query("SELECT id,status,deleted_at,login_blocked FROM app_profiles WHERE id=$1 AND role='marketer' LIMIT 1", [String(reset.user_id)]);
-    const p = profile.rows[0];
-    if (!p || p.deleted_at || p.login_blocked || ["blocked","deleted"].includes(String(p.status || "").toLowerCase())) {
-      return res.status(400).json({ error: "invalid_or_expired_token" });
-    }
     const hash = digest(password);
-    await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1", [String(p.id), hash]);
-    await db.query("UPDATE network_agent_applications SET password_hash=$2 WHERE member_id=$1", [String(p.id), hash]).catch(()=>{});
-    await db.query("UPDATE marketer_password_resets SET used_at=now() WHERE user_id=$1 AND used_at IS NULL", [String(p.id)]);
-    await db.query("DELETE FROM network_auth_sessions WHERE user_id=$1", [String(p.id)]).catch(()=>{});
+    const consumed = await db.query(
+      `WITH candidate AS (
+         SELECT r.id,r.user_id
+           FROM marketer_password_resets r
+           JOIN app_profiles p ON p.id=r.user_id AND p.role='marketer'
+          WHERE r.token_hash=$1 AND r.used_at IS NULL AND r.expires_at>now()
+            AND p.deleted_at IS NULL AND COALESCE(p.login_blocked,false)=false
+            AND lower(COALESCE(p.status,'')) NOT IN ('blocked','deleted')
+          ORDER BY r.created_at DESC
+          LIMIT 1
+          FOR UPDATE OF r SKIP LOCKED
+       ),
+       claimed AS (
+         UPDATE marketer_password_resets r SET used_at=now()
+          FROM candidate c WHERE r.id=c.id AND r.used_at IS NULL
+          RETURNING c.user_id
+       ),
+       changed AS (
+         UPDATE app_profiles p SET login_password_hash=$2
+          FROM claimed c WHERE p.id=c.user_id AND p.role='marketer'
+            AND p.deleted_at IS NULL AND COALESCE(p.login_blocked,false)=false
+            AND lower(COALESCE(p.status,'')) NOT IN ('blocked','deleted')
+          RETURNING p.id
+       ),
+       synced AS (
+         UPDATE network_agent_applications a SET password_hash=$2
+          FROM changed c WHERE a.member_id=c.id RETURNING a.member_id
+       ),
+       revoked AS (
+         DELETE FROM network_auth_sessions s USING changed c
+          WHERE s.user_id=c.id RETURNING s.user_id
+       )
+       SELECT id FROM changed`,
+      [digest(token), hash]
+    );
+    if (!consumed.rows.length) return res.status(400).json({ error: "invalid_or_expired_token" });
     return res.json({ ok: true });
   }
   return res.status(400).json({ error: "invalid_action" });
