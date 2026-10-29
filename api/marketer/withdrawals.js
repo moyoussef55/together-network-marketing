@@ -1,6 +1,6 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
-import { requireNetworkUser } from "../../lib/network-auth.js";
+import { requireNetworkUser, verifyNetworkPassword, hashNetworkPassword } from "../../lib/network-auth.js";
 
 export const access = "public";
 export const methods = ["GET", "POST"];
@@ -12,7 +12,7 @@ const fullName = p => [p.first_name,p.second_name,p.third_name,p.fourth_name].fi
 async function profileFor(uid) {
   const r = await db.query("SELECT id,role,status,deleted_at,login_blocked,activation_blocked,display_name,first_name,second_name,third_name,fourth_name,phone,wallet_password_hash FROM app_profiles WHERE id=$1 LIMIT 1",[uid]);
   if(!r.rows[0]) return null;
-  const legacy = await db.query("SELECT wallet_password_hash FROM network_agent_applications WHERE member_id=$1 ORDER BY created_at DESC LIMIT 1",[uid]).catch(()=>({rows:[]}));
+  const legacy = r.rows[0].wallet_password_hash ? {rows:[]} : await db.query("SELECT wallet_password_hash FROM network_agent_applications WHERE member_id=$1 ORDER BY created_at DESC LIMIT 1",[uid]).catch(()=>({rows:[]}));
   r.rows[0].wallet_password_hashes = [r.rows[0].wallet_password_hash,...legacy.rows.map(x=>x.wallet_password_hash)].filter(Boolean);
   return r.rows[0];
 }
@@ -76,8 +76,15 @@ export default async function handler(req,res) {
   if(!Number.isFinite(amount)||amount<=0||Math.round(amount*100)!==amount*100) return res.status(400).json({ok:false,error:"invalid_amount"});
   if(!/^[0-9٠-٩۰-۹+()\s-]{8,25}$/.test(phone)) return res.status(400).json({ok:false,error:"invalid_phone"});
   if(!pin) return res.status(400).json({ok:false,error:"wallet_pin_required"});
-  const suppliedHash=sha(pin); const knownHashes=p.wallet_password_hashes||[p.wallet_password_hash].filter(Boolean);
-  if(!knownHashes.some(saved=>suppliedHash===String(saved))) return res.status(400).json({ok:false,error:"invalid_wallet_pin"});
+  const knownHashes=p.wallet_password_hashes||[p.wallet_password_hash].filter(Boolean);
+  let validPinHash="";
+  for(const saved of knownHashes){if(await verifyNetworkPassword(pin,saved)){validPinHash=String(saved);break;}}
+  if(!validPinHash) return res.status(400).json({ok:false,error:"invalid_wallet_pin"});
+  if(!validPinHash.startsWith("pbkdf2-sha256$")){
+    const upgradedHash=await hashNetworkPassword(pin);
+    await db.query("UPDATE app_profiles SET wallet_password_hash=$2 WHERE id=$1 AND wallet_password_hash=$3",[uid,upgradedHash,validPinHash]).catch(()=>{});
+    await db.query("UPDATE network_agent_applications SET wallet_password_hash=$2 WHERE member_id=$1 AND wallet_password_hash=$3",[uid,upgradedHash,validPinHash]).catch(()=>{});
+  }
   const check=await checkState(uid);
   if(!check.latest || !check.eligible) return res.status(400).json({ok:false,error:"check_review_period",latest_check_at:check.latest});
   const current=await balanceFor(uid);
