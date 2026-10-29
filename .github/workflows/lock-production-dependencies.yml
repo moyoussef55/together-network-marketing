@@ -1,0 +1,37 @@
+name: Lock production dependencies
+
+on:
+  push:
+    branches: [namecheap-runtime-prep]
+    paths:
+      - "package.json"
+      - "runtime/hatchable/package.json"
+      - ".github/workflows/lock-production-dependencies.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  lock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Generate a reproducible production dependency lock
+        run: npm install --package-lock-only --no-audit --no-fund
+      - name: Commit lockfile if it changed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- package-lock.json; then
+            echo "LOCKFILE_UNCHANGED"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "chore: lock production dependency versions"
+          git push
