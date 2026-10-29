@@ -89,6 +89,24 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
+      - name: Clean incomplete staging from failed security deploy attempts
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s" <<'REMOTE'
+          set -euo pipefail
+          ROOT="/home/togeiign/marketing-network"
+          for OLD_RUN in 40947318031 40947369533 40947505378 40947594350; do
+            find "$ROOT" -type f -name ".*.incoming-$OLD_RUN" -delete
+            rm -rf "/home/togeiign/.tn-remember-stage-$OLD_RUN"
+          done
+          echo "INCOMPLETE_STAGING_CLEANED; BACKUPS_PRESERVED"
+          REMOTE
+
       - name: Verify Namecheap npm runtime before staging
         shell: bash
         env:
