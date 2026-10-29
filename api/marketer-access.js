@@ -1,6 +1,7 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
 import { createNetworkSession, clearNetworkSession, getNetworkUser, hashNetworkPassword, verifyNetworkPassword } from "../lib/network-auth.js";
+import { enforceLoginRateLimit } from "../lib/login-rate-limit.js";
 
 export const access = "public";
 export const methods = ["GET","POST","DELETE"];
@@ -38,6 +39,11 @@ export default async function(req,res) {
 
   if (identifier) {
     if (!password) return res.status(400).json({error:"password_required"});
+    const limit = await enforceLoginRateLimit(req,identifier,"marketer");
+    if (limit.blocked) {
+      res.setHeader("Retry-After",String(limit.retryAfterSeconds));
+      return res.status(429).json({error:"too_many_attempts",retry_after_seconds:limit.retryAfterSeconds});
+    }
     const q = await db.query(
       `SELECT p.id,p.email,p.display_name,p.role,p.referral_code,p.status,p.deleted_at,p.login_blocked,p.login_password_hash,
               COALESCE(NULLIF(p.login_password_hash,''),NULLIF(a.password_hash,'')) AS effective_password_hash
