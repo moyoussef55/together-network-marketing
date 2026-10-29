@@ -12,6 +12,22 @@ jobs:
           node-version: 20
       - run: npm install --no-audit --no-fund
       - run: npm run check
+      - name: Test PBKDF2 password migration helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import crypto from "node:crypto";
+          import { hashNetworkPassword, verifyNetworkPassword } from "./lib/network-auth.js";
+          const password = "Example-Secure-Test-2026!";
+          const encoded = await hashNetworkPassword(password);
+          if (!encoded.startsWith("pbkdf2-sha256$")) throw new Error("PBKDF2 prefix missing");
+          if (!await verifyNetworkPassword(password, encoded)) throw new Error("PBKDF2 verification failed");
+          if (await verifyNetworkPassword("incorrect-password", encoded)) throw new Error("wrong password was accepted");
+          const legacy = crypto.createHash("sha256").update("legacy-test-password").digest("hex");
+          if (!await verifyNetworkPassword("legacy-test-password", legacy)) throw new Error("legacy SHA-256 compatibility failed");
+          console.log("PBKDF2 verification and legacy compatibility checks passed");
+          NODE
       - name: Smoke-test static site and health endpoint without production secrets
         run: |
           node server.js > /tmp/together-runtime.log 2>&1 &
