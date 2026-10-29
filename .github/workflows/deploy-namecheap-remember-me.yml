@@ -185,7 +185,14 @@ jobs:
           test -d "$ROOT"
           for REL in "${FILES[@]}"; do
             test -s "$STAGE/$REL"
-            test -f "$ROOT/$REL" && test ! -L "$ROOT/$REL"
+            if [ -e "$ROOT/$REL" ]; then
+              test -f "$ROOT/$REL" && test ! -L "$ROOT/$REL"
+            else
+              case "$REL" in
+                "lib/login-rate-limit.js") mkdir -p "$(dirname "$ROOT/$REL")" ;;
+                *) echo "Unexpected missing production target: $REL" >&2; exit 1 ;;
+              esac
+            fi
           done
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' "$STAGE/public/login.html"
           grep -Fq '<span>تذكرني</span>' "$STAGE/public/tn-admin-gateway-7f3c9b2d/index.html"
@@ -205,8 +212,11 @@ jobs:
             DIR="$(dirname "$TARGET")"
             BASE="$(basename "$TARGET")"
             INCOMING_FILE="$DIR/.$BASE.incoming-$RUN_ID"
-            BACKUP_FILE="$TARGET.BACKUP-before-remember-session-$STAMP-$RUN_ID"
-            cp -p "$TARGET" "$BACKUP_FILE"
+            BACKUP_FILE=""
+            if [ -f "$TARGET" ]; then
+              BACKUP_FILE="$TARGET.BACKUP-before-remember-session-$STAMP-$RUN_ID"
+              cp -p "$TARGET" "$BACKUP_FILE"
+            fi
             cp "$STAGED_FILE" "$INCOMING_FILE"
             chmod --reference="$TARGET" "$INCOMING_FILE"
             cmp -s "$STAGED_FILE" "$INCOMING_FILE"
@@ -218,7 +228,11 @@ jobs:
 
           rollback() {
             for ((i=0; i<${#TARGETS[@]}; i++)); do
-              cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true
+              if [[ -n "${BACKUPS[$i]}" ]]; then
+                cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true
+              else
+                rm -f "${TARGETS[$i]}" || true
+              fi
               rm -f "${INCOMING[$i]}" || true
             done
           }
@@ -248,7 +262,7 @@ jobs:
           echo "=== LIVE FILE HASHES ==="
           sha256sum "${TARGETS[@]}"
           for ((i=0; i<${#TARGETS[@]}; i++)); do
-            echo "BACKUP_CREATED=${BACKUPS[$i]}"
+            if [[ -n "${BACKUPS[$i]}" ]]; then echo "BACKUP_CREATED=${BACKUPS[$i]}"; else echo "NEW_FILE_INSTALLED=${TARGETS[$i]}"; fi
           done
           echo "NAMECHEAP_REMEMBER_ME_AUTH_DEPLOY_OK"
           rm -rf "$STAGE"
