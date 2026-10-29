@@ -38,9 +38,9 @@ jobs:
           grep -Fq '<span>تذكرني</span>' public/tn-admin-gateway-7f3c9b2d/index.html
           grep -Fq 'rememberMe:$("rememberMe").checked' public/tn-admin-gateway-7f3c9b2d/index.html
           grep -Fq 'createNetworkSession(res,p.id,b.rememberMe === true)' api/marketer-access.js
-          grep -Fq "interval '60 days' ELSE interval '30 minutes'" lib/network-auth.js
+          grep -Fq "interval '30 days' ELSE interval '30 minutes'" lib/network-auth.js
           grep -Fq 'issueAdminSession(res, b.rememberMe === true)' api/admin/login.js
-          grep -Fq "interval '10 years' ELSE interval '30 minutes'" lib/admin-auth.js
+          grep -Fq "interval '30 days' ELSE interval '30 minutes'" lib/admin-auth.js
           node --check api/marketer-access.js
           node --check lib/network-auth.js
           node --check api/admin/login.js
@@ -127,9 +127,9 @@ jobs:
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' "$STAGE/public/login.html"
           grep -Fq '<span>تذكرني</span>' "$STAGE/public/tn-admin-gateway-7f3c9b2d/index.html"
           grep -Fq 'createNetworkSession(res,p.id,b.rememberMe === true)' "$STAGE/api/marketer-access.js"
-          grep -Fq "interval '60 days' ELSE interval '30 minutes'" "$STAGE/lib/network-auth.js"
+          grep -Fq "interval '30 days' ELSE interval '30 minutes'" "$STAGE/lib/network-auth.js"
           grep -Fq 'issueAdminSession(res, b.rememberMe === true)' "$STAGE/api/admin/login.js"
-          grep -Fq "interval '10 years' ELSE interval '30 minutes'" "$STAGE/lib/admin-auth.js"
+          grep -Fq "interval '30 days' ELSE interval '30 minutes'" "$STAGE/lib/admin-auth.js"
 
           STAMP="$(date +%Y%m%d-%H%M%S)"
           TARGETS=()
