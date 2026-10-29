@@ -149,6 +149,17 @@ jobs:
           NODETEST
           echo "=== PUBLIC HEALTH ENDPOINT ==="
           curl --silent --show-error --max-time 10 -i https://marketing.together-v-egp.com/healthz | head -n 25 || true
+          echo "=== PUBLIC SECURITY HEADERS AND SAFE ROUTE PROBES ==="
+          BASE="https://marketing.together-v-egp.com"
+          for path in "/" "/login" "/admin/" "/api/admin/events" "/api/marketer/wallet" "/.env" "/.git/config" "/server.js" "/package.json" "/uploads?key=../.env&expires=1&sig=invalid" "/event-media?key=../../.env"; do
+            hdr="$(mktemp)"
+            code="$(curl --silent --show-error --max-time 10 -o /dev/null -D "$hdr" -w '%{http_code}' "$BASE$path" || true)"
+            printf 'ROUTE status=%s path=%s\n' "$code" "$path"
+            if [ "$path" = "/" ] || [ "$path" = "/login" ]; then
+              grep -iE '^(content-security-policy|strict-transport-security|x-frame-options|x-content-type-options|referrer-policy|permissions-policy|cross-origin-opener-policy|cross-origin-resource-policy):' "$hdr" | tr -d '\r' | sed 's/^/HEADER /' || true
+            fi
+            rm -f "$hdr"
+          done
           echo "=== DIAGNOSTIC COMPLETE; no production data changed ==="
           REMOTE
 
