@@ -29,7 +29,7 @@ jobs:
       - name: Check out the exact GitHub revision
         uses: actions/checkout@v4
 
-      - name: Validate login labels and server-side session lifetimes
+      - name: Validate security code and server-side session lifetimes
         shell: bash
         run: |
           set -euo pipefail
@@ -45,7 +45,15 @@ jobs:
           node --check lib/network-auth.js
           node --check api/admin/login.js
           node --check lib/admin-auth.js
-          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html api/marketer-access.js lib/network-auth.js api/admin/login.js lib/admin-auth.js
+          sha256sum public/login.html public/tn-admin-gateway-7f3c9b2d/index.html api/marketer-access.js lib/network-auth.js api/admin/login.js lib/admin-auth.js api/marketer-password-reset.js api/admin/password-reset.js api/admin/marketers.js api/network/register-agent.js api/admin/register-agent.js api/marketer/withdrawals.js api/agent-document.js lib/agent-welcome-email.js
+          node --check api/marketer-password-reset.js
+          node --check api/admin/password-reset.js
+          node --check api/admin/marketers.js
+          node --check api/network/register-agent.js
+          node --check api/admin/register-agent.js
+          node --check api/marketer/withdrawals.js
+          node --check api/agent-document.js
+          node --check lib/agent-welcome-email.js
 
       - name: Pin the verified Namecheap SSH host key
         shell: bash
@@ -62,7 +70,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
-      - name: Transfer the six reviewed files to remote staging
+      - name: Transfer reviewed security files to remote staging
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -78,6 +86,14 @@ jobs:
             "lib/network-auth.js"
             "api/admin/login.js"
             "lib/admin-auth.js"
+            "api/marketer-password-reset.js"
+            "api/admin/password-reset.js"
+            "api/admin/marketers.js"
+            "api/network/register-agent.js"
+            "api/admin/register-agent.js"
+            "api/marketer/withdrawals.js"
+            "api/agent-document.js"
+            "lib/agent-welcome-email.js"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
           tar -czf - "${FILES[@]}" | ssh \
@@ -90,7 +106,7 @@ jobs:
             "umask 077; mkdir -p '$REMOTE_STAGE'; tar -xzf - -C '$REMOTE_STAGE'"
           echo "REMOTE_STAGE_READY=$REMOTE_STAGE"
 
-      - name: Back up, atomically install, and verify the six files
+      - name: Back up, atomically install, and verify security files
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -118,6 +134,14 @@ jobs:
             "lib/network-auth.js"
             "api/admin/login.js"
             "lib/admin-auth.js"
+            "api/marketer-password-reset.js"
+            "api/admin/password-reset.js"
+            "api/admin/marketers.js"
+            "api/network/register-agent.js"
+            "api/admin/register-agent.js"
+            "api/marketer/withdrawals.js"
+            "api/agent-document.js"
+            "lib/agent-welcome-email.js"
           )
           test -d "$ROOT"
           for REL in "${FILES[@]}"; do
