@@ -11,6 +11,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install --no-audit --no-fund
+      - name: Audit production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=high
       - run: npm run check
       - name: Test PBKDF2 password migration helpers
         shell: bash
