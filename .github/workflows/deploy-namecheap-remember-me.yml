@@ -23,6 +23,7 @@ on:
       - "lib/agent-welcome-email.js"
       - "server.js"
       - "package.json"
+      - "package-lock.json"
       - ".github/workflows/deploy-namecheap-remember-me.yml"
   workflow_dispatch:
 
@@ -126,6 +127,7 @@ jobs:
             "lib/agent-welcome-email.js"
             "server.js"
             "package.json"
+            "package-lock.json"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
           tar -czf - "${FILES[@]}" | ssh \
@@ -178,6 +180,7 @@ jobs:
             "lib/agent-welcome-email.js"
             "server.js"
             "package.json"
+            "package-lock.json"
           )
           test -d "$ROOT"
           for REL in "${FILES[@]}"; do
