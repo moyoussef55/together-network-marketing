@@ -75,6 +75,8 @@ jobs:
             echo "DB_TEST_FAILED=NODE_RUNTIME_NOT_FOUND"
             exit 2
           fi
+          echo "=== INSTALLED PACKAGE VERSIONS (NODE RESOLUTION; NO INSTALL) ==="
+          "$NODE" -e 'const fs=require("node:fs"),path=require("node:path");for(const name of ["express","multer","nodemailer","pg","cookie-parser","dotenv"]){try{let p=require.resolve(name,{paths:[process.cwd()]});let d=path.dirname(p),found=null;for(let i=0;i<6;i++){const f=path.join(d,"package.json");try{const j=JSON.parse(fs.readFileSync(f,"utf8"));if(j.name===name){found=j;break}}catch{}const up=path.dirname(d);if(up===d)break;d=up}console.log("PACKAGE "+name+"="+(found?.version||"resolved-version-unknown"))}catch{console.log("PACKAGE "+name+"=not-resolved")}}'
           "$NODE" --input-type=module <<'NODETEST'
           import path from "node:path";
           import fs from "node:fs/promises";
