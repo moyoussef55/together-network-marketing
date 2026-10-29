@@ -218,7 +218,11 @@ jobs:
               cp -p "$TARGET" "$BACKUP_FILE"
             fi
             cp "$STAGED_FILE" "$INCOMING_FILE"
-            chmod --reference="$TARGET" "$INCOMING_FILE"
+            if [ -f "$TARGET" ]; then
+              chmod --reference="$TARGET" "$INCOMING_FILE"
+            else
+              chmod 644 "$INCOMING_FILE"
+            fi
             cmp -s "$STAGED_FILE" "$INCOMING_FILE"
             TARGETS+=("$TARGET")
             STAGED+=("$STAGED_FILE")
