@@ -21,14 +21,13 @@ jobs:
     steps:
       - name: Pin Namecheap host key
         shell: bash
-        env:
-          NAMECHEAP_SSH_KNOWN_HOSTS: ${{ secrets.NAMECHEAP_SSH_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
-          printf '%s\\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
 
       - name: Load Namecheap SSH key
         uses: webfactory/ssh-agent@v0.9.0
