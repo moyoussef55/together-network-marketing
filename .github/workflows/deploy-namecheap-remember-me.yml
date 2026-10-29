@@ -55,6 +55,7 @@ jobs:
           node --check api/agent-document.js
           node --check api/network/agent.js
           node --check lib/agent-welcome-email.js
+          node --check server.js
 
       - name: Pin the verified Namecheap SSH host key
         shell: bash
@@ -96,6 +97,7 @@ jobs:
             "api/agent-document.js"
             "api/network/agent.js"
             "lib/agent-welcome-email.js"
+            "server.js"
           )
           REMOTE_STAGE="/home/togeiign/.tn-remember-stage-$RUN_ID"
           tar -czf - "${FILES[@]}" | ssh \
@@ -145,6 +147,7 @@ jobs:
             "api/agent-document.js"
             "api/network/agent.js"
             "lib/agent-welcome-email.js"
+            "server.js"
           )
           test -d "$ROOT"
           for REL in "${FILES[@]}"; do
