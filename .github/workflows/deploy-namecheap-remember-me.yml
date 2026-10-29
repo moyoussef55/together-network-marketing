@@ -44,6 +44,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          npm install --no-audit --no-fund
+          npm run check
           grep -Fq 'data-ar="تذكرني" data-en="Remember me">تذكرني' public/login.html
           grep -Fq 'textContent=lang==="ar"?"تذكرني":"Remember me"' public/login.html
           grep -Fq '<span>تذكرني</span>' public/tn-admin-gateway-7f3c9b2d/index.html
