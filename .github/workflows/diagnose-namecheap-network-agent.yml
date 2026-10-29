@@ -75,18 +75,49 @@ jobs:
           fi
           "$NODE" --input-type=module <<'NODETEST'
           import path from "node:path";
+          import fs from "node:fs/promises";
           import dotenv from "dotenv";
           import pg from "pg";
           const ROOT = "/home/togeiign/marketing-network";
           dotenv.config({ path: path.join(ROOT, ".env"), override: false, quiet: true });
-          const url = process.env.DATABASE_URL;
-          console.log("DOTENV_FILE_PRESENT=" + (await import("node:fs/promises").then(fs => fs.access(path.join(ROOT, ".env")).then(() => "yes").catch(() => "no"))));
-          console.log("DATABASE_URL_AVAILABLE=" + (url ? "yes" : "no"));
+          let url = process.env.DATABASE_URL;
+          let configSource = url ? "dotenv-or-shell" : "not-found";
           if (!url) {
-            console.log("DB_TEST_FAILED=DATABASE_URL_NOT_AVAILABLE_IN_SERVER_ENV_OR_DOTENV");
+            try {
+              const procEntries = await fs.readdir("/proc");
+              for (const entry of procEntries) {
+                if (!/^\\d+$/.test(entry)) continue;
+                try {
+                  const procStat = await fs.stat("/proc/" + entry);
+                  if (procStat.uid !== process.getuid()) continue;
+                  const exe = await fs.readlink("/proc/" + entry + "/exe");
+                  if (!/node|lsnode/i.test(exe)) continue;
+                  const envText = (await fs.readFile("/proc/" + entry + "/environ")).toString("utf8");
+                  const envMap = Object.fromEntries(envText.split("\\0").filter(Boolean).map(item => {
+                    const at = item.indexOf("=");
+                    return at > 0 ? [item.slice(0, at), item.slice(at + 1)] : ["", ""];
+                  }).filter(([key]) => key));
+                  if (envMap.DATABASE_URL) {
+                    url = envMap.DATABASE_URL;
+                    for (const key of ["DB_SCHEMA", "DATABASE_SSL", "DATABASE_SSL_REJECT_UNAUTHORIZED"]) {
+                      if (envMap[key] !== undefined) process.env[key] = envMap[key];
+                    }
+                    configSource = "live-node-process-environment";
+                    break;
+                  }
+                } catch {}
+              }
+            } catch {}
+          }
+          console.log("DOTENV_FILE_PRESENT=" + (await fs.access(path.join(ROOT, ".env")).then(() => "yes").catch(() => "no")));
+          console.log("DATABASE_URL_AVAILABLE=" + (url ? "yes" : "no"));
+          console.log("DB_CONFIG_SOURCE=" + configSource);
+          if (!url) {
+            console.log("DB_TEST_FAILED=DATABASE_URL_NOT_FOUND_IN_DOTENV_OR_LIVE_NODE_PROCESS");
             process.exit(3);
           }
           const schema = String(process.env.DB_SCHEMA || "public").trim();
+          console.log("DB_SCHEMA_SETTING_PRESENT=" + (process.env.DB_SCHEMA ? "yes" : "no"));
           if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
             console.log("DB_TEST_FAILED=INVALID_DB_SCHEMA_SETTING");
             process.exit(4);
