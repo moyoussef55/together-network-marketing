@@ -25,9 +25,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
-          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          printf '%s\\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
-          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
 
       - name: Load Namecheap SSH key
         uses: webfactory/ssh-agent@v0.9.0
@@ -49,8 +48,6 @@ jobs:
           if test -d "$ROOT"; then
             stat -c '%n | size=%s | modified=%y' "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
             sha256sum "$ROOT/server.js" "$ROOT/api/network/agent.js" 2>&1 || true
-            echo "=== INSTALLED DEPENDENCY VERSIONS ==="
-            (cd "$ROOT" && npm ls --depth=0 express multer nodemailer pg 2>&1 || true) | head -n 70
             echo "=== RESTART MARKER ==="
             stat -c '%n | modified=%y' "$ROOT/tmp/restart.txt" 2>&1 || true
           else
@@ -66,105 +63,7 @@ jobs:
 
           echo "=== PROCESS SUMMARY (no command arguments) ==="
           ps -eo user=,comm= 2>/dev/null | grep -Ei 'node|passenger|npm' | sort | uniq -c | head -n 20 || true
-          echo "=== READ-ONLY DATABASE CONNECTION TEST ==="
-          cd "$ROOT" || exit 1
-          NODE="/home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/node"
-          if ! test -x "$NODE"; then NODE="/home/togeiign/nodevenv/marketing-network/20/bin/node"; fi
-          if ! test -x "$NODE"; then NODE="$(command -v node || true)"; fi
-          if ! test -x "${NODE:-/nonexistent}"; then
-            echo "DB_TEST_FAILED=NODE_RUNTIME_NOT_FOUND"
-            exit 2
-          fi
-          echo "=== INSTALLED PACKAGE VERSIONS (NODE RESOLUTION; NO INSTALL) ==="
-          "$NODE" -e 'const fs=require("node:fs"),path=require("node:path");for(const name of ["express","multer","nodemailer","pg","cookie-parser","dotenv"]){try{let p=require.resolve(name,{paths:[process.cwd()]});let d=path.dirname(p),found=null;for(let i=0;i<6;i++){const f=path.join(d,"package.json");try{const j=JSON.parse(fs.readFileSync(f,"utf8"));if(j.name===name){found=j;break}}catch{}const up=path.dirname(d);if(up===d)break;d=up}console.log("PACKAGE "+name+"="+(found?.version||"resolved-version-unknown"))}catch{console.log("PACKAGE "+name+"=not-resolved")}}'
-          "$NODE" --input-type=module <<'NODETEST'
-          import path from "node:path";
-          import fs from "node:fs/promises";
-          import dotenv from "dotenv";
-          import pg from "pg";
-          const ROOT = "/home/togeiign/marketing-network";
-          dotenv.config({ path: path.join(ROOT, ".env"), override: false, quiet: true });
-          let url = process.env.DATABASE_URL;
-          let configSource = url ? "dotenv-or-shell" : "not-found";
-          if (!url) {
-            try {
-              const procEntries = await fs.readdir("/proc");
-              for (const entry of procEntries) {
-                if (!/^\\d+$/.test(entry)) continue;
-                try {
-                  const procStat = await fs.stat("/proc/" + entry);
-                  if (procStat.uid !== process.getuid()) continue;
-                  const exe = await fs.readlink("/proc/" + entry + "/exe");
-                  if (!/node|lsnode/i.test(exe)) continue;
-                  const envText = (await fs.readFile("/proc/" + entry + "/environ")).toString("utf8");
-                  const envMap = Object.fromEntries(envText.split("\\0").filter(Boolean).map(item => {
-                    const at = item.indexOf("=");
-                    return at > 0 ? [item.slice(0, at), item.slice(at + 1)] : ["", ""];
-                  }).filter(([key]) => key));
-                  if (envMap.DATABASE_URL) {
-                    url = envMap.DATABASE_URL;
-                    for (const key of ["DB_SCHEMA", "DATABASE_SSL", "DATABASE_SSL_REJECT_UNAUTHORIZED"]) {
-                      if (envMap[key] !== undefined) process.env[key] = envMap[key];
-                    }
-                    configSource = "live-node-process-environment";
-                    break;
-                  }
-                } catch {}
-              }
-            } catch {}
-          }
-          console.log("DOTENV_FILE_PRESENT=" + (await fs.access(path.join(ROOT, ".env")).then(() => "yes").catch(() => "no")));
-          console.log("DATABASE_URL_AVAILABLE=" + (url ? "yes" : "no"));
-          console.log("DB_CONFIG_SOURCE=" + configSource);
-          if (!url) {
-            console.log("DB_TEST_FAILED=DATABASE_URL_NOT_FOUND_IN_DOTENV_OR_LIVE_NODE_PROCESS");
-            process.exit(3);
-          }
-          const schema = String(process.env.DB_SCHEMA || "public").trim();
-          console.log("DB_SCHEMA_SETTING_PRESENT=" + (process.env.DB_SCHEMA ? "yes" : "no"));
-          if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(schema)) {
-            console.log("DB_TEST_FAILED=INVALID_DB_SCHEMA_SETTING");
-            process.exit(4);
-          }
-          const sslEnabled = !["0", "false", "no"].includes(String(process.env.DATABASE_SSL || "true").toLowerCase());
-          const pool = new pg.Pool({
-            connectionString: url,
-            options: `-c search_path=${schema},public -c statement_timeout=5000`,
-            ssl: sslEnabled ? { rejectUnauthorized: !["0", "false", "no"].includes(String(process.env.DATABASE_SSL_REJECT_UNAUTHORIZED || "true").toLowerCase()) } : false,
-            max: 1,
-            connectionTimeoutMillis: 10000,
-            idleTimeoutMillis: 1000
-          });
-          try {
-            const result = await pool.query("SELECT 1 AS ok, current_database() AS database_name, current_schema() AS schema_name, current_setting('server_version') AS server_version");
-            const row = result.rows[0];
-            console.log("DB_QUERY_OK=" + (row.ok === 1 ? "yes" : "no"));
-            console.log("DATABASE_NAME=" + row.database_name);
-            console.log("ACTIVE_SCHEMA=" + row.schema_name);
-            console.log("POSTGRES_VERSION=" + row.server_version);
-            console.log("EXPECTED_HATCHABLE_DB_MATCH=" + (row.database_name === "hatchable_apps" && row.schema_name === "app_a8bd59e089a78f6d" ? "yes" : "no"));
-            if (row.ok !== 1 || row.database_name !== "hatchable_apps" || row.schema_name !== "app_a8bd59e089a78f6d") process.exitCode = 5;
-          } catch (error) {
-            console.log("DB_TEST_FAILED=" + String(error?.code || error?.name || "QUERY_ERROR"));
-            process.exitCode = 6;
-          } finally {
-            await pool.end().catch(() => {});
-          }
-          NODETEST
-          echo "=== PUBLIC HEALTH ENDPOINT ==="
-          curl --silent --show-error --max-time 10 -i https://marketing.together-v-egp.com/healthz | head -n 25 || true
-          echo "=== PUBLIC SECURITY HEADERS AND SAFE ROUTE PROBES ==="
-          BASE="https://marketing.together-v-egp.com"
-          for path in "/" "/login" "/admin/" "/api/admin/events" "/api/marketer/wallet" "/.env" "/.git/config" "/server.js" "/package.json" "/uploads?key=../.env&expires=1&sig=invalid" "/event-media?key=../../.env"; do
-            hdr="$(mktemp)"
-            code="$(curl --silent --show-error --max-time 10 -o /dev/null -D "$hdr" -w '%{http_code}' "$BASE$path" || true)"
-            printf 'ROUTE status=%s path=%s\n' "$code" "$path"
-            if [ "$path" = "/" ] || [ "$path" = "/login" ]; then
-              grep -iE '^(content-security-policy|strict-transport-security|x-frame-options|x-content-type-options|referrer-policy|permissions-policy|cross-origin-opener-policy|cross-origin-resource-policy):' "$hdr" | tr -d '\r' | sed 's/^/HEADER /' || true
-            fi
-            rm -f "$hdr"
-          done
-          echo "=== DIAGNOSTIC COMPLETE; no production data changed ==="
+          echo "=== DIAGNOSTIC COMPLETE; no files changed, no restart requested ==="
           REMOTE
 
 # Read-only diagnostic trigger after the verified Hatchable API sync on 2026-10-24.
