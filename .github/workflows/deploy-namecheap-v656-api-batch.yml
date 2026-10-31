@@ -54,6 +54,46 @@ jobs:
             if test -f "$FILE"; then node --check "$FILE"; fi
           done
 
+      - name: Test PBKDF2 password migration helpers
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import crypto from "node:crypto";
+          import { hashNetworkPassword, verifyNetworkPassword } from "./lib/network-auth.js";
+          const password = "Example-Secure-Test-2026!";
+          const encoded = await hashNetworkPassword(password);
+          if (!encoded.startsWith("pbkdf2-sha256$")) throw new Error("PBKDF2 prefix missing");
+          if (!await verifyNetworkPassword(password, encoded)) throw new Error("PBKDF2 verification failed");
+          if (await verifyNetworkPassword("incorrect-password", encoded)) throw new Error("wrong password was accepted");
+          const legacy = crypto.createHash("sha256").update("legacy-test-password").digest("hex");
+          if (!await verifyNetworkPassword("legacy-test-password", legacy)) throw new Error("legacy SHA-256 compatibility failed");
+          console.log("PBKDF2 verification and legacy compatibility checks passed");
+          NODE
+
+      - name: Smoke-test Namecheap Node runtime before transfer
+        shell: bash
+        run: |
+          set -euo pipefail
+          node server.js > /tmp/together-runtime.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --silent --fail http://127.0.0.1:3000/healthz > /tmp/together-health.json; then break; fi
+            sleep 1
+          done
+          grep -q '"ok":true' /tmp/together-health.json
+          grep -q '"runtime":"namecheap-node"' /tmp/together-health.json
+          grep -q '"api_mode":"hatchable-proxy"' /tmp/together-health.json
+          curl --silent --fail http://127.0.0.1:3000/ | grep -qi 'Together'
+          curl --silent --fail http://127.0.0.1:3000/login > /tmp/together-login.html
+          grep -qi '<html' /tmp/together-login.html
+          CODE=$(curl --silent --output /tmp/together-api-response.json --write-out '%{http_code}' http://127.0.0.1:3000/api/admin/login)
+          case "$CODE" in
+            405|404) ;;
+            *) cat /tmp/together-api-response.json; tail -n 40 /tmp/together-runtime.log || true; exit 1 ;;
+          esac
+
       - name: Pin the verified Namecheap SSH host key
         shell: bash
         run: |
