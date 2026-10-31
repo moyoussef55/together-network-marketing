@@ -1,0 +1,183 @@
+name: Deploy reviewed Hatchable v656 API delta to Namecheap
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "api/admin/marketers.js"
+      - "api/admin/password-reset.js"
+      - "api/admin/register-agent.js"
+      - "api/agent-document.js"
+      - "api/marketer/withdrawals.js"
+      - "api/network/register-agent.js"
+      - "lib/agent-welcome-email.js"
+      - "lib/network-update.js"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-hatchable-v656-api-batch
+  cancel-in-progress: false
+
+jobs:
+  validate-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the exact pushed revision
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and validate the Namecheap runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-audit --no-fund
+          npm audit --omit=dev --audit-level=high
+          npm run check
+          for FILE in \
+            api/admin/marketers.js \
+            api/admin/password-reset.js \
+            api/admin/register-agent.js \
+            api/agent-document.js \
+            api/marketer-password-reset.js \
+            api/marketer/withdrawals.js \
+            api/network/register-agent.js \
+            lib/agent-welcome-email.js \
+            lib/network-update.js; do
+            if test -f "$FILE"; then node --check "$FILE"; fi
+          done
+
+      - name: Pin the verified Namecheap SSH host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+
+      - name: Load the Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Transfer the strict API and library allowlist to a private staging directory
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          FILES=(
+            "api/admin/marketers.js"
+            "api/admin/password-reset.js"
+            "api/admin/register-agent.js"
+            "api/agent-document.js"
+            "api/marketer/withdrawals.js"
+            "api/network/register-agent.js"
+            "lib/agent-welcome-email.js"
+            "lib/network-update.js"
+          )
+          REMOTE_STAGE="/home/togeiign/.together-v656-api-stage-$RUN_ID"
+          tar -czf - "${FILES[@]}" | ssh \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" \
+            "umask 077; mkdir -p '$REMOTE_STAGE'; tar -xzf - -C '$REMOTE_STAGE'"
+          echo "REMOTE_STAGE_READY=$REMOTE_STAGE"
+
+      - name: Back up, atomically install, restart, and verify the allowlisted files
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" \
+            "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          STAGE="/home/togeiign/.together-v656-api-stage-$RUN_ID"
+          FILES=(
+            "api/admin/marketers.js"
+            "api/admin/password-reset.js"
+            "api/admin/register-agent.js"
+            "api/agent-document.js"
+            "api/marketer/withdrawals.js"
+            "api/network/register-agent.js"
+            "lib/agent-welcome-email.js"
+            "lib/network-update.js"
+          )
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+          TARGETS=()
+          INCOMING=()
+          BACKUPS=()
+          rollback() {
+            for ((i=0; i<${#TARGETS[@]}; i++)); do
+              if test -f "${BACKUPS[$i]}"; then cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true; fi
+              rm -f "${INCOMING[$i]}" || true
+            done
+          }
+          trap rollback ERR
+
+          test -d "$ROOT"
+          for REL in "${FILES[@]}"; do
+            TARGET="$ROOT/$REL"
+            STAGED_FILE="$STAGE/$REL"
+            DIR="$(dirname "$TARGET")"
+            BASE="$(basename "$TARGET")"
+            INCOMING_FILE="$DIR/.$BASE.incoming-$RUN_ID"
+            BACKUP_FILE="$TARGET.BACKUP-before-v656-github-sync-$STAMP"
+            test -d "$DIR"
+            test -f "$TARGET"
+            test ! -L "$TARGET"
+            test -s "$STAGED_FILE"
+            node --check "$STAGED_FILE"
+            cp -p "$TARGET" "$BACKUP_FILE"
+            cp "$STAGED_FILE" "$INCOMING_FILE"
+            chmod --reference="$TARGET" "$INCOMING_FILE"
+            cmp -s "$STAGED_FILE" "$INCOMING_FILE"
+            TARGETS+=("$TARGET")
+            INCOMING+=("$INCOMING_FILE")
+            BACKUPS+=("$BACKUP_FILE")
+          done
+
+          for ((i=0; i<${#TARGETS[@]}; i++)); do
+            mv -f "${INCOMING[$i]}" "${TARGETS[$i]}"
+          done
+          for ((i=0; i<${#TARGETS[@]}; i++)); do
+            cmp -s "$STAGE/${FILES[$i]}" "${TARGETS[$i]}"
+          done
+
+          mkdir -p "$ROOT/tmp"
+          touch "$ROOT/tmp/restart.txt"
+          echo "=== DEPLOYED FILE HASHES ==="
+          sha256sum "${TARGETS[@]}"
+          echo "=== BACKUPS ==="
+          printf '%s\\n' "${BACKUPS[@]}"
+          echo "NAMECHEAP_V656_API_BATCH_DEPLOY_OK"
+          trap - ERR
+          rm -rf "$STAGE"
+          REMOTE
