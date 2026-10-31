@@ -1,6 +1,7 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
 import { requireAdminSession } from "../../lib/admin-auth.js";
+import { hashNetworkPassword } from "../../lib/network-auth.js";
 export const access = "public"; export const methods=["GET","POST"];
 
 const body=req=>typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{});
@@ -9,10 +10,8 @@ const clean=s=>String(s??"").trim();
 async function audit(actor,action,id,meta={}){await db.query("INSERT INTO audit_logs(actor_id,action,entity_type,entity_id,metadata) VALUES($1,$2,'marketer',$3,$4::jsonb)",[actor,action,id,JSON.stringify(meta)]).catch(()=>{});}
 
 async function getBvRecipients(id,position,selectedSide){
- // A manual BV sale reaches every activated upline on the placement path.
- // The top/root marketer always records the sale in account 01; intermediate
- // uplines use the account position and side where their child is placed.
- // Activation is evaluated at sale time, so later activation never backfills old BV.
+ // A manual BV sale reaches only uplines activated no later than the source marketer.
+ // This prevents a later-activated upline from earning BV on an agent already active beneath it.
  const r=await db.query(`WITH RECURSIVE chain AS (
    SELECT p.owner_marketer_id::text upline_member_id,p.account_position,p.side,
           ARRAY[$1::text,p.owner_marketer_id::text]::text[] seen
@@ -22,8 +21,6 @@ async function getBvRecipients(id,position,selectedSide){
      FROM chain c JOIN network_placements p ON p.member_id::text=c.upline_member_id
     WHERE NOT p.owner_marketer_id::text=ANY(c.seen)
  ), mapped AS (
-   -- Intermediate accounts receive BV in the account-position branch and local side
-   -- of the child immediately below them. The top/root only has aggregate account 01.
    SELECT DISTINCT c.upline_member_id,
           CASE WHEN NOT EXISTS (
             SELECT 1 FROM network_placements parent
@@ -36,26 +33,45 @@ async function getBvRecipients(id,position,selectedSide){
           ELSE c.side END AS side
      FROM chain c
      JOIN app_profiles recipient ON recipient.id::text=c.upline_member_id
-    WHERE recipient.activation_started_at IS NOT NULL
+     CROSS JOIN LATERAL (
+       SELECT activation_started_at FROM app_profiles
+        WHERE id::text=$1 AND status='active'
+          AND COALESCE(activation_blocked,false)=false AND deleted_at IS NULL
+        LIMIT 1
+     ) source_activation
+    WHERE source_activation.activation_started_at IS NOT NULL
+      AND source_activation.activation_started_at<=now()
+      AND recipient.activation_started_at IS NOT NULL
+      AND recipient.activation_started_at<=source_activation.activation_started_at
       AND recipient.activation_started_at<=now()
+      AND recipient.status='active'
       AND COALESCE(recipient.activation_blocked,false)=false
       AND recipient.deleted_at IS NULL
    UNION
-   -- Every non-root upline also receives the aggregate account 01 entry.
-   -- Its side is determined by the branch where that upline sits in its parent's network.
    SELECT DISTINCT c.upline_member_id, 1 AS account_position,
           CASE c.account_position WHEN 2 THEN 'left' WHEN 3 THEN 'right' ELSE c.side END AS side
      FROM chain c
      JOIN app_profiles recipient ON recipient.id::text=c.upline_member_id
-    WHERE recipient.activation_started_at IS NOT NULL
+     CROSS JOIN LATERAL (
+       SELECT activation_started_at FROM app_profiles
+        WHERE id::text=$1 AND status='active'
+          AND COALESCE(activation_blocked,false)=false AND deleted_at IS NULL
+        LIMIT 1
+     ) source_activation
+    WHERE source_activation.activation_started_at IS NOT NULL
+      AND source_activation.activation_started_at<=now()
+      AND recipient.activation_started_at IS NOT NULL
+      AND recipient.activation_started_at<=source_activation.activation_started_at
       AND recipient.activation_started_at<=now()
+      AND recipient.status='active'
       AND COALESCE(recipient.activation_blocked,false)=false
       AND recipient.deleted_at IS NULL
       AND EXISTS (SELECT 1 FROM network_placements parent WHERE parent.member_id::text=c.upline_member_id)
  )
  SELECT upline_member_id,account_position,side FROM mapped`,[id]);
  const own=await db.query(`SELECT id FROM app_profiles
-   WHERE id=$1 AND activation_started_at IS NOT NULL AND activation_started_at<=now()
+   WHERE id=$1 AND status='active'
+     AND activation_started_at IS NOT NULL AND activation_started_at<=now()
      AND COALESCE(activation_blocked,false)=false AND deleted_at IS NULL LIMIT 1`,[id]);
  const recipients=[];
  if(own.rows.length){
@@ -173,7 +189,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
  }
  if(action==="password"){
   const pw=String(b.password||""); if(pw.length<6)return res.status(400).json({error:"password_too_short"});
-  const h=hash(pw);
+  const h=await hashNetworkPassword(pw);
   if(b.kind==="wallet"){await db.query("UPDATE app_profiles SET wallet_password_hash=$2 WHERE id=$1",[id,h]);await db.query("UPDATE network_agent_applications SET wallet_password_hash=$2 WHERE member_id=$1",[id,h]).catch(()=>{});}
   else {await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1",[id,h]);await db.query("UPDATE network_agent_applications SET password_hash=$2 WHERE member_id=$1",[id,h]).catch(()=>{});await db.query("DELETE FROM network_auth_sessions WHERE user_id=$1",[id]).catch(()=>{});}
   await audit(actor,"change_"+(b.kind==="wallet"?"wallet":"login")+"_password",id); return res.json({ok:true});

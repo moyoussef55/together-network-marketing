@@ -1,6 +1,7 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
-import { createNetworkSession, clearNetworkSession, getNetworkUser, digest } from "../lib/network-auth.js";
+import { createNetworkSession, clearNetworkSession, getNetworkUser, hashNetworkPassword, verifyNetworkPassword } from "../lib/network-auth.js";
+import { enforceLoginRateLimit } from "../lib/login-rate-limit.js";
 
 export const access = "public";
 export const methods = ["GET","POST","DELETE"];
@@ -38,6 +39,11 @@ export default async function(req,res) {
 
   if (identifier) {
     if (!password) return res.status(400).json({error:"password_required"});
+    const limit = await enforceLoginRateLimit(req,identifier,"marketer");
+    if (limit.blocked) {
+      res.setHeader("Retry-After",String(limit.retryAfterSeconds));
+      return res.status(429).json({error:"too_many_attempts",retry_after_seconds:limit.retryAfterSeconds});
+    }
     const q = await db.query(
       `SELECT p.id,p.email,p.display_name,p.role,p.referral_code,p.status,p.deleted_at,p.login_blocked,p.login_password_hash,
               COALESCE(NULLIF(p.login_password_hash,''),NULLIF(a.password_hash,'')) AS effective_password_hash
@@ -59,10 +65,10 @@ export default async function(req,res) {
     if (p.deleted_at || p.status==="deleted") return res.status(403).json({error:"account_deleted"});
     if (p.login_blocked || p.status==="blocked") return res.status(403).json({error:"login_blocked"});
     if (!p.effective_password_hash) return res.status(403).json({error:"password_not_set"});
-    const supplied = digest(password);
-    if (!sameHash(supplied,p.effective_password_hash)) return res.status(401).json({error:"invalid_credentials"});
-    if (!p.login_password_hash && p.effective_password_hash) {
-      await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1 AND (login_password_hash IS NULL OR login_password_hash='')",[p.id,p.effective_password_hash]);
+    if (!await verifyNetworkPassword(password,p.effective_password_hash)) return res.status(401).json({error:"invalid_credentials"});
+    if (!String(p.effective_password_hash||"").startsWith("pbkdf2-sha256$")) {
+      const upgradedHash=await hashNetworkPassword(password);
+      await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1 AND (login_password_hash IS NULL OR login_password_hash='' OR login_password_hash=$3)",[p.id,upgradedHash,p.login_password_hash||""]);
     }
     const token = await createNetworkSession(res,p.id,b.rememberMe === true);
     return res.json({ok:true,token,user:{id:p.id,email:p.email,name:p.display_name,role:p.role,referral_code:p.referral_code}});
@@ -77,12 +83,12 @@ export default async function(req,res) {
   if (p.rows[0].login_blocked || p.rows[0].status==="blocked") return res.status(403).json({error:"login_blocked"});
   if (!p.rows[0].login_password_hash) {
     if (password.length < 8) return res.status(400).json({error:"password_too_short",min_length:8});
-    const hash = digest(password);
+    const hash = await hashNetworkPassword(password);
     await db.query("UPDATE app_profiles SET login_password_hash=$2 WHERE id=$1 AND login_password_hash IS NULL",[String(uid),hash]);
     await db.query("UPDATE network_agent_applications SET password_hash=$2 WHERE member_id=$1 AND (password_hash IS NULL OR password_hash='')",[String(uid),hash]).catch(()=>{});
     return res.json({ok:true,password_set:true});
   }
   if (!password) return res.status(400).json({error:"password_required"});
-  if (!sameHash(digest(password),p.rows[0].login_password_hash)) return res.status(403).json({error:"invalid_login_password"});
+  if (!await verifyNetworkPassword(password,p.rows[0].login_password_hash)) return res.status(403).json({error:"invalid_login_password"});
   return res.json({ok:true});
 }

@@ -1,4 +1,4 @@
-import { db, email, config } from "hatchable";
+import { db, email } from "hatchable";
 import crypto from "node:crypto";
 import { passwordHash } from "../../lib/admin-auth.js";
 
@@ -24,8 +24,7 @@ export default async function(req, res) {
         const token = crypto.randomBytes(32).toString("hex");
         await db.query("UPDATE network_admin_password_resets SET used_at=now() WHERE used_at IS NULL");
         await db.query("INSERT INTO network_admin_password_resets(token_hash,expires_at) VALUES($1,now()+interval '30 minutes')", [digest(token)]);
-        const publicBase = String(await config.get("PUBLIC_BASE_URL") || "https://together-network.hatchable.site").replace(/\/+$/, "");
-        const link = publicBase + "/admin-reset-password.html?token=" + encodeURIComponent(token);
+        const link = "https://together-network.hatchable.site/admin-reset-password.html?token=" + encodeURIComponent(token);
         try {
           await email.send({
             to: address,
@@ -50,19 +49,20 @@ export default async function(req, res) {
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = await passwordHash(password, salt);
       const changed = await db.query(
-        `WITH claimed AS (
-           UPDATE network_admin_password_resets
-              SET used_at=now()
+        `WITH candidate AS (
+           SELECT id
+             FROM network_admin_password_resets
             WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now()
-            RETURNING id
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
          ),
          updated AS (
            UPDATE network_admin_credentials
               SET password_hash=$2,password_salt=$3,updated_at=now()
-            WHERE id=1 AND EXISTS (SELECT 1 FROM claimed)
+            WHERE id=1 AND EXISTS (SELECT 1 FROM candidate)
             RETURNING id
          ),
-         invalidated AS (
+         consumed AS (
            UPDATE network_admin_password_resets SET used_at=now()
             WHERE used_at IS NULL AND EXISTS (SELECT 1 FROM updated)
             RETURNING id
