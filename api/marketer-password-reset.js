@@ -1,5 +1,6 @@
 import { db, email } from "hatchable";
 import crypto from "node:crypto";
+import { hashNetworkPassword } from "../lib/network-auth.js";
 
 export const access = "public";
 export const methods = ["POST"];
@@ -57,7 +58,7 @@ export default async function(req,res) {
     const password = String(b.password || "");
     if (!/^[a-f0-9]{64}$/i.test(token)) return res.status(400).json({ error: "invalid_or_expired_token" });
     if (password.length < 8 || password.length > 200) return res.status(400).json({ error: "password_too_short", min_length: 8 });
-    const hash = digest(password);
+    const hash = await hashNetworkPassword(password);
     const consumed = await db.query(
       `WITH candidate AS (
          SELECT r.id,r.user_id

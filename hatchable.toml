@@ -4,6 +4,7 @@ signup = "open"
 
 [ai]
 required = true
+providers = ["google"]
 
 [db.tables.wallet_transactions]
 read = "own"
@@ -18,6 +19,11 @@ write = "member"
 [db.tables.withdrawal_requests]
 read = "own"
 write = "own"
+
+[[secret]]
+name = "AI_PROVIDER"
+required = false
+description = "AI provider selector used by the server-side SEO generation setup; set to google for Gemini."
 
 [[config]]
 name = "app_name"
@@ -41,6 +47,83 @@ name = "ONESIGNAL_REST_API_KEY"
 required = false
 description = "Server-side OneSignal REST API key used only to send marketer push notifications"
 
+[[secret]]
+name = "ONESIGNAL_MARKETING_REST_API_KEY"
+required = false
+description = "Server-side OneSignal REST API key for the marketing.together-v-egp.com web-push app; keep separate from the legacy Hatchable app"
+
+[[secret]]
+name = "TEMP_SOURCE_UPLOAD_TOKEN"
+required = false
+description = "Optional token for the temporary source upload endpoint; leave unset to keep that endpoint disabled."
+
+[[secret]]
+name = "GEMINI_API_KEY"
+required = false
+description = "Server-side Google Gemini API key reserved for the SEO metadata backend. Never put this key in public files or frontend code."
+
 [[cron]]
 path = "/api/jobs/network-bv-weekly"
 schedule = "0 * * * *"
+
+# Archived migration and recovery snapshots contain sensitive financial/member data.
+# Restrict them to platform collaborators; application routes should use live tables.
+[db.tables.marketer_password_resets_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.network_auth_sessions_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.ops_backup_on1000555_fund_events_20261022]
+read = "member"
+write = "member"
+
+[db.tables.ops_backup_on1000555_funds_20261022]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_wallet_transactions]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_wallets]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_withdrawal_requests]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_backup_20261014_pre_maxout_flashout]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_backup_20261024_pre_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261014_pre_maxout_flashout]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261024_pre_midnight_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261024_pre_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallets_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.withdrawal_requests_snapshot_20261009_1037]
+read = "member"
+write = "member"

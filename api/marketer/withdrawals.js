@@ -1,6 +1,30 @@
 import { db } from "hatchable";
 import crypto from "node:crypto";
-import { requireNetworkUser } from "../../lib/network-auth.js";
+import { requireNetworkUser, verifyNetworkPassword, hashNetworkPassword } from "../../lib/network-auth.js";
+
+// Reconcile existing weekly cheque records into the spendable wallet. The SQL helper
+// uses a unique reference per member/week/position, so repeat calls do not double-credit.
+async function reconcileWeeklyCheckCredits(memberId) {
+  const uid = String(memberId || "").trim();
+  if (!uid) return { checked: 0, changed: 0 };
+  const result = await db.query(
+    "SELECT account_position, week_end, check_amount FROM network_bv_settlements WHERE member_id = $1 AND COALESCE(check_amount, 0) > 0 ORDER BY week_end, account_position",
+    [uid]
+  );
+  let changed = 0;
+  for (const row of result.rows || []) {
+    const amount = Number(row.check_amount || 0);
+    const position = Number(row.account_position || 1);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(position)) continue;
+    const reference = "weekly-check:" + String(row.week_end) + ":" + uid + ":" + position;
+    const credit = await db.query(
+      "SELECT credit_weekly_check_to_wallet($1, $2, $3) AS credited",
+      [uid, amount, reference]
+    );
+    if (credit.rows[0]?.credited === true) changed += 1;
+  }
+  return { checked: result.rows?.length || 0, changed };
+}
 
 export const access = "public";
 export const methods = ["GET", "POST"];
@@ -12,27 +36,37 @@ const fullName = p => [p.first_name,p.second_name,p.third_name,p.fourth_name].fi
 async function profileFor(uid) {
   const r = await db.query("SELECT id,role,status,deleted_at,login_blocked,activation_blocked,display_name,first_name,second_name,third_name,fourth_name,phone,wallet_password_hash FROM app_profiles WHERE id=$1 LIMIT 1",[uid]);
   if(!r.rows[0]) return null;
-  const legacy = await db.query("SELECT wallet_password_hash FROM network_agent_applications WHERE member_id=$1 ORDER BY created_at DESC LIMIT 1",[uid]).catch(()=>({rows:[]}));
+  const legacy = r.rows[0].wallet_password_hash
+    ? {rows:[]}
+    : await db.query("SELECT wallet_password_hash FROM network_agent_applications WHERE member_id=$1 ORDER BY created_at DESC LIMIT 1",[uid]).catch(()=>({rows:[]}));
   r.rows[0].wallet_password_hashes = [r.rows[0].wallet_password_hash,...legacy.rows.map(x=>x.wallet_password_hash)].filter(Boolean);
   return r.rows[0];
 }
 async function balanceFor(uid) {
+  // Reconcile recorded checks before calculating withdrawal eligibility.
+  await reconcileWeeklyCheckCredits(uid);
   // Use the same scoped wallet-state function as the marketer wallet page.
   // Direct reads of wallets/wallet_transactions can be hidden by row-level policies,
   // incorrectly making a funded account look empty during withdrawal validation.
+  let storedBalance = 0;
+  let foundWallet = false;
   try {
     const scoped = await db.query("SELECT get_marketer_wallet_state($1) AS state",[uid]);
     let state=scoped.rows[0]?.state||{};
     if(typeof state==="string"){try{state=JSON.parse(state)}catch{state={}}}
-    if(state.wallet_found) return Number(state.balance||0);
+    if(state.wallet_found){storedBalance=Number(state.balance||0);foundWallet=true;}
   } catch {}
-  const [wallet,tx,admin] = await Promise.all([
-    db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
-    db.query("SELECT COUNT(*)::int AS n FROM wallet_transactions WHERE user_id=$1",[uid]),
-    db.query("SELECT COALESCE(SUM(CASE WHEN action='remove' THEN -ABS(amount) ELSE ABS(amount) END),0)::numeric AS net FROM admin_manual_wallet_actions WHERE marketer_id=$1",[uid])
-  ]);
-  return wallet.rows.length && (Number(wallet.rows[0].balance||0)!==0 || Number(tx.rows[0]?.n||0)>0)
-    ? Number(wallet.rows[0].balance||0) : Number(admin.rows[0]?.net||0);
+  if(!foundWallet){
+    const [wallet,tx,admin] = await Promise.all([
+      db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
+      db.query("SELECT COUNT(*)::int AS n FROM wallet_transactions WHERE user_id=$1",[uid]),
+      db.query("SELECT COALESCE(SUM(CASE WHEN action='remove' THEN -ABS(amount) ELSE ABS(amount) END),0)::numeric AS net FROM admin_manual_wallet_actions WHERE marketer_id=$1",[uid])
+    ]);
+    storedBalance = wallet.rows.length && (Number(wallet.rows[0].balance||0)!==0 || Number(tx.rows[0]?.n||0)>0)
+      ? Number(wallet.rows[0].balance||0) : Number(admin.rows[0]?.net||0);
+  }
+  // Paid weekly checks already live in wallets.balance; settlement totals must not be added again.
+  return storedBalance;
 }
 async function checkState(uid) {
   const r=await db.query("SELECT settled_at,check_amount FROM network_bv_settlements WHERE member_id=$1 AND check_amount>0 ORDER BY settled_at DESC LIMIT 1",[uid]);
@@ -66,7 +100,7 @@ export default async function handler(req,res) {
       requestsFor(uid)
     ]);
     const reserved=requests.filter(x=>isPendingStatus(x.status)).reduce((sum,x)=>sum+Number(x.amount||0),0);
-    return res.json({ok:true,account:{name:fullName(p),phone:p.phone||""},balance,available_balance:Math.max(0,balance-reserved),latest_check_at:check.latest,check_eligible:check.eligible,requests:requests.map(x=>({...x,amount:Number(x.amount||0)}))});
+    return res.json({ok:true,account:{name:fullName(p),phone:p.phone||""},balance:Math.max(0,balance-reserved),available_balance:Math.max(0,balance-reserved),latest_check_at:check.latest,check_eligible:check.eligible,requests:requests.map(x=>({...x,amount:Number(x.amount||0)}))});
   }
   if(req.method!=="POST") return res.status(405).json({ok:false,error:"method_not_allowed"});
   let b; try{b=bodyOf(req)}catch{return res.status(400).json({ok:false,error:"invalid_json"});}
@@ -76,8 +110,15 @@ export default async function handler(req,res) {
   if(!Number.isFinite(amount)||amount<=0||Math.round(amount*100)!==amount*100) return res.status(400).json({ok:false,error:"invalid_amount"});
   if(!/^[0-9٠-٩۰-۹+()\s-]{8,25}$/.test(phone)) return res.status(400).json({ok:false,error:"invalid_phone"});
   if(!pin) return res.status(400).json({ok:false,error:"wallet_pin_required"});
-  const suppliedHash=sha(pin); const knownHashes=p.wallet_password_hashes||[p.wallet_password_hash].filter(Boolean);
-  if(!knownHashes.some(saved=>suppliedHash===String(saved))) return res.status(400).json({ok:false,error:"invalid_wallet_pin"});
+  const knownHashes=p.wallet_password_hashes||[p.wallet_password_hash].filter(Boolean);
+  let validPinHash="";
+  for(const saved of knownHashes){if(await verifyNetworkPassword(pin,saved)){validPinHash=String(saved);break;}}
+  if(!validPinHash) return res.status(400).json({ok:false,error:"invalid_wallet_pin"});
+  if(!validPinHash.startsWith("pbkdf2-sha256$")){
+    const upgradedHash=await hashNetworkPassword(pin);
+    await db.query("UPDATE app_profiles SET wallet_password_hash=$2 WHERE id=$1 AND wallet_password_hash=$3",[uid,upgradedHash,validPinHash]).catch(()=>{});
+    await db.query("UPDATE network_agent_applications SET wallet_password_hash=$2 WHERE member_id=$1 AND wallet_password_hash=$3",[uid,upgradedHash,validPinHash]).catch(()=>{});
+  }
   const check=await checkState(uid);
   if(!check.latest || !check.eligible) return res.status(400).json({ok:false,error:"check_review_period",latest_check_at:check.latest});
   const current=await balanceFor(uid);
