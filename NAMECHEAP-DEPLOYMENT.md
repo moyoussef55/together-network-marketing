@@ -1,45 +1,53 @@
-# Namecheap deployment preparation
+# Namecheap deployment preparation and bounded source sync
 
-## Current branch status
+## What this release does
 
-The draft sync branch overlays 27 recently changed files from Hatchable project v656 onto the existing Namecheap runtime-preparation branch. All 27 files were verified byte-for-byte against Hatchable. Seventeen paths differ from the Namecheap branch; ten already matched.
+The Namecheap runtime-prep branch receives a bounded set of API/library source updates from Hatchable v656. The eight deployed files are:
 
-This does **not** mean the whole Namecheap runtime is now v656. The existing Node runtime baseline remains `435.0.0-namecheap-prep`, and older source changes outside the 27-file delta have not been fully exported or compatibility-tested. Keep this branch in review/staging; do not treat it as a full production release.
+- `api/admin/marketers.js`
+- `api/admin/password-reset.js`
+- `api/admin/register-agent.js`
+- `api/agent-document.js`
+- `api/marketer/withdrawals.js`
+- `api/network/register-agent.js`
+- `lib/agent-welcome-email.js`
+- `lib/network-update.js`
 
-## Critical data-safety rules
+The transfer is performed by `.github/workflows/deploy-namecheap-v656-api-batch.yml` after a push to `namecheap-runtime-prep` changes one of those paths.
 
-- Production must use the original Hatchable PostgreSQL database unless a separate migration plan is designed and tested. Do not point production at an imported or empty copy.
-- Do not run `migrations/*.sql` or `seed.sql` against the original Hatchable database. The SQL files are included for source parity/audit only; Hatchable already manages its schema.
-- Do not commit credentials, tokens, environment files, or marketer/customer exports. Configure real values only in the private Namecheap environment.
-- Keep the Hatchable site live and unchanged while preparing and testing Namecheap.
-- Existing Hatchable object-storage objects are not present in Git. The local storage adapter does not automatically fetch existing Hatchable media.
+## What is deliberately not deployed
 
-## Synced source delta
+- Hatchable-only local marketer-import APIs and the local-import admin page.
+- SQL migrations 155, 157, 158, 159, and 160 (audit/source parity only; never auto-executed).
+- `hatchable.toml`, seed files, database exports, marketer records, wallet balances, private credentials, backups, and storage archives.
+- Static UI files. The previous remember-me admin login page was already synchronized separately; this batch avoids retriggering the broad static-UI deployment workflow.
 
-The current v656 sync branch contains 27 recently changed files covering:
-- Admin/marketer authentication and security hardening.
-- Marketer/network registration, access, withdrawal, and related library logic.
-- Local marketer-import preview, audit, reconciliation and apply handlers plus the admin page.
-- SQL source files 155, 157, 158, 159 and 160 for audit/source parity only.
-- The admin gateway page.
+## Safety checks and deployment behavior
 
-No member data, wallet balances, source-import JSON, database dumps, seed data, backups, secrets, or binary storage exports were transferred.
+Before SSH, the workflow:
+1. Installs the repository dependencies using Node.js 20.
+2. Runs `npm audit --omit=dev --audit-level=high`.
+3. Runs the repository-wide Node syntax check.
+4. Tests PBKDF2 password hashing and legacy password verification.
+5. Starts the Namecheap Node runtime locally in the runner and checks the health route, home page, login page, and expected method behavior for the admin login route.
 
-## Runtime setup / staged deployment
+Then it:
+1. Pins the previously verified SSH host key and loads the existing Namecheap SSH key from GitHub Actions secrets.
+2. Transfers only the eight allowlisted source files to a private staging directory.
+3. Checks the live app root and all target files.
+4. Creates timestamped backups beside every existing target.
+5. Installs the new files atomically and verifies each installed file against the staged source.
+6. Touches the application's restart marker and reports the backup paths.
 
-1. In cPanel, confirm the supported Node version and persistent writable storage.
-2. Back up the active application directory before changing anything. The previously identified live path is `/home/togeiign/marketing-network`; verify it is still the active root.
-3. Create or use a separate staging Node.js application. Do not point staging at the current production document root.
-4. Install dependencies in staging and run `npm run check`.
-5. Run runtime smoke tests and compare the new APIs against the Namecheap `hatchable` compatibility adapter.
-6. Verify read-only database connectivity, authentication/session behavior, media access, uploads, email, OneSignal, weekly BV scheduling, and critical admin/marketer flows with test accounts.
-7. Review and explicitly allowlist the temporary local-import endpoints before deploying them. They are not automatically included in the existing Namecheap static/API workflows.
-8. Do not run migrations or seed scripts. Do not switch production traffic until every cutover gate passes.
+An unsuccessful preflight stops before transfer. A failed file install invokes the rollback handler using the backups. GitHub Actions must report a successful run before this sync can be considered complete.
 
-## Existing deployment workflows
+## Critical database and storage rules
 
-The existing GitHub Actions workflows deploy only selected, allowlisted pages or handlers when matching paths are pushed to `namecheap-runtime-prep`. They do not deploy this complete 27-file delta. A successful workflow for one file is not proof that the remaining code has been deployed or tested.
+- Keep production connected to the original Hatchable PostgreSQL database unless a separately designed and tested migration plan is approved.
+- Do not execute `migrations/*.sql` or `seed.sql` against the original database as part of this sync.
+- The code transfer does not migrate media or copy existing Hatchable object-storage files.
+- No wallet balance, settlement, BV, marketer, or other member data is modified by this workflow.
 
-## Cutover gate
+## Scope limit
 
-Do not switch DNS or route users to Namecheap until the full source inventory, runtime compatibility, external DB access, auth/session behavior, existing-media access, upload/download URLs, email delivery, OneSignal push, weekly BV job, and critical admin/marketer flows have been verified. This branch is a staged source change, not a production-ready declaration.
+This is an API/library file sync, not a complete migration of the entire Hatchable v656 runtime to Namecheap. It intentionally leaves the Node server entrypoint, compatibility adapter, dependencies, environment values, static pages, database, existing media, and DNS untouched.
