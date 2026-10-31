@@ -1,29 +1,32 @@
-# Together Network Marketing — Namecheap preparation branch
+# Together Network Marketing — Namecheap staging branch
 
-This isolated branch starts from the Hatchable v435 source snapshot and now includes the exact 12-file change set detected between Hatchable deployments v456 and v477. It remains a staging/preparation branch, not a declaration that the entire repository is byte-for-byte equivalent to Hatchable v477.
+This branch keeps the existing Namecheap Node.js runtime-preparation baseline (package version `435.0.0-namecheap-prep`) and overlays a reviewed 27-file source delta from Hatchable project version v656.
 
-## Synced from Hatchable v456–v477
+## What was synced
 
-- Admin and marketer withdrawal pages and API handlers.
-- Withdrawal migrations 144–150, including the v477 admin UPDATE row-level-security policy.
-- File-level verification confirmed these 12 files exactly match their current Hatchable source contents.
+- 27 Hatchable source files last changed between 2026-10-29 and 2026-10-31.
+- All 27 files were re-read from Hatchable and verified byte-for-byte against this branch.
+- 17 paths differ from the existing Namecheap runtime-prep branch; the other 10 already matched.
+- The delta includes security/authentication changes, marketer/network APIs, the local marketer-import admin tooling, related libraries, and SQL migration files 155, 157, 158, 159, and 160.
+- The target branch's existing Node.js runtime, compatibility adapter, deployment workflows, and configuration were retained.
 
-## Important
+## Important scope limit
 
-- The original Hatchable project remains live and is the reference production version.
-- This branch is based on v435 plus the v456–v477 delta; changes from v436–v455 have not been imported by this specific sync.
-- The target production database must remain the same original Hatchable PostgreSQL database. Confirm external access and permissions before enabling any real writes.
-- Do not run database migrations or seed scripts from this runtime against the original database; the existing schema is already managed by Hatchable.
-- Existing Hatchable object-storage files are not automatically copied to Namecheap. Product photos, registration attachments, event media, and chat attachments need a verified shared-storage integration or a separate media migration before claiming full parity.
-- The compatibility adapter and the synced files have not yet been deployed or end-to-end tested on Namecheap.
+This is **not** a complete Hatchable v656 source export or a production-ready Namecheap deployment. Only the recent 27-file delta was added. Older source changes outside this delta were not re-exported here, and the Node runtime remains versioned `435.0.0-namecheap-prep`. No compatibility run or end-to-end staging test has been completed for the complete delta.
 
-## Local / staging runtime
+## Data and database safety
 
-- Node.js 20 or later, below 25.
-- Install dependencies with `npm install`.
-- Copy `.env.example` to `.env` and configure values privately.
-- Run `npm run check` for syntax validation.
-- Run `npm start` to start the server.
-- Open `/healthz` to check runtime status and, when `DATABASE_URL` is configured, a read-only `SELECT 1` connection check.
+- No marketer source export, customer/member data, wallet records, balance histories, database dump, seed data, backups, or credentials were committed.
+- `migrations/*.sql` are included for source parity and audit only. **Do not run migrations or `seed.sql` on Namecheap or against the original Hatchable database.**
+- Keep production on the original Hatchable PostgreSQL database unless a separately tested migration plan is approved.
+- Existing Hatchable object-storage media are not copied into Git; media access requires a verified shared-storage integration or separate migration.
 
-See [NAMECHEAP-DEPLOYMENT.md](NAMECHEAP-DEPLOYMENT.md) for the staged migration and cutover checklist.
+## Before any deployment
+
+1. Keep this branch as a staging/review branch; do not merge to the live deployment branch merely to make these files appear on Namecheap.
+2. Review the temporary local-import endpoints (`api/admin/local-import-*.js` and `public/admin/local-import.html`) and decide whether they belong on Namecheap at all.
+3. Run the Node.js syntax check and runtime smoke tests on a separate staging application with non-production test accounts.
+4. Verify compatibility of the new API/library files with the Namecheap `hatchable` adapter, authentication/session behavior, database access, storage/media, email, OneSignal, cron, and critical admin/marketer flows.
+5. Only then prepare a complete allowlisted deployment with a fresh server backup and a verified rollback path.
+
+The existing push-triggered Namecheap workflows deploy only selected paths; they do not deploy this full 27-file delta. This branch and its draft pull request have not changed the live Namecheap server.
