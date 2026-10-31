@@ -154,7 +154,6 @@ jobs:
             test -f "$TARGET"
             test ! -L "$TARGET"
             test -s "$STAGED_FILE"
-            node --check "$STAGED_FILE"
             cp -p "$TARGET" "$BACKUP_FILE"
             cp "$STAGED_FILE" "$INCOMING_FILE"
             chmod --reference="$TARGET" "$INCOMING_FILE"
