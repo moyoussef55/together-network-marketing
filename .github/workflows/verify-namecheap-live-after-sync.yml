@@ -1,0 +1,52 @@
+name: Verify Namecheap live site after GitHub sync
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - ".github/workflows/verify-namecheap-live-after-sync.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Verify live health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://marketing.together-v-egp.com"
+          curl --silent --show-error --fail "$BASE/healthz" -o /tmp/namecheap-health.json
+          node -e 'const x=JSON.parse(require("node:fs").readFileSync("/tmp/namecheap-health.json","utf8")); if(x.ok!==true || x.runtime!=="namecheap-node") process.exit(1); console.log("LIVE_HEALTH_OK",x.runtime,x.api_mode||"");'
+      - name: Verify the live home and login pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://marketing.together-v-egp.com"
+          curl --silent --show-error --fail "$BASE/" | grep -qi 'Together'
+          curl --silent --show-error --fail "$BASE/login" | grep -Fq 'تذكرني'
+          curl --silent --show-error --fail "$BASE/tn-admin-gateway-7f3c9b2d/" | grep -Fq 'تذكرني'
+          echo "LIVE_STATIC_PAGES_OK"
+      - name: Verify public API routes do not return server errors unauthenticated
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://marketing.together-v-egp.com"
+          probe() {
+            local path="$1"
+            local code
+            code="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$BASE$path")"
+            echo "$path -> HTTP $code"
+            case "$code" in
+              200|400|401|403|404|405) ;;
+              *) echo "Unexpected public response for $path" >&2; exit 1 ;;
+            esac
+          }
+          probe "/api/admin/login"
+          probe "/api/admin/marketers"
+          probe "/api/marketer/withdrawals"
+          probe "/api/network/agent"
