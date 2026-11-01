@@ -29,7 +29,10 @@ jobs:
           set -euo pipefail
           test -s server.js
           node --check server.js
-          grep -Fq '"/network/agent"' server.js
+          if grep -Fq '"/network/agent"' server.js; then
+            echo "ERROR: /api/network/agent must not bypass the Hatchable proxy" >&2
+            exit 1
+          fi
           sha256sum server.js
 
       - name: Pin verified Namecheap host key
@@ -80,7 +83,10 @@ jobs:
           test -f "$TARGET"
           test ! -L "$TARGET"
           test -s "$STAGED"
-          grep -Fq '"/network/agent"' "$STAGED"
+          if grep -Fq '"/network/agent"' "$STAGED"; then
+            echo "ERROR: staged server still bypasses the Hatchable proxy" >&2
+            exit 1
+          fi
           cp "$STAGED" "$INCOMING"
           chmod --reference="$TARGET" "$INCOMING"
           cmp -s "$STAGED" "$INCOMING"
