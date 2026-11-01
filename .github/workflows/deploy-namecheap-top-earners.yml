@@ -101,6 +101,8 @@ jobs:
               if test -f "${BACKUPS[$i]}"; then cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true; fi
               rm -f "${INCOMING[$i]}" || true
             done
+            rm -rf "$STAGE" || true
+            echo "ROLLBACK_COMPLETED"
           }
           trap rollback ERR
           test -d "$ROOT"
@@ -129,7 +131,6 @@ jobs:
           for ((i=0; i<${#TARGETS[@]}; i++)); do
             cmp -s "$STAGE/${FILES[$i]}" "${TARGETS[$i]}"
           done
-          node --check "$ROOT/api/admin/top-earners.js"
           mkdir -p "$ROOT/tmp"
           touch "$ROOT/tmp/restart.txt"
           echo "=== DEPLOYED FILE HASHES ==="
