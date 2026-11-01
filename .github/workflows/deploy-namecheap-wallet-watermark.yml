@@ -120,7 +120,7 @@ jobs:
           test ! -L "$TARGET"
           test -f "$TARGET"
 
-          mkdir -p "$BACKUP/public/marketer"
+          mkdir -p "$BACKUP/$(dirname "$REL")"
           cp -p "$TARGET" "$SAVED"
           cp "$SRC" "$INCOMING"
           chmod --reference="$TARGET" "$INCOMING"
