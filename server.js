@@ -9,6 +9,7 @@ import cookieParser from "cookie-parser";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { closeRuntimeResources, verifyStorageSignature } from "hatchable";
+import { saveEventUploadChunk, finalizeLocalEventUpload } from "./lib/event-upload-storage.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "public");
@@ -48,8 +49,34 @@ const eventDiskUpload = multer({
   limits: { files: 12, fields: 200, fieldSize: 25 * 1024 * 1024 }
 });
 
-// Namecheap is a secure transport bridge. Hatchable remains responsible
-// for admin authentication, event records, and media storage.
+const EVENT_UPLOAD_AUTH_TTL_MS = 15 * 60 * 1000;
+const authorizedEventUploads = new Map();
+const eventMediaExtensions = new Map([
+  ["image/jpeg", "jpg"], ["image/png", "png"], ["image/webp", "webp"], ["image/gif", "gif"],
+  ["video/mp4", "mp4"], ["video/webm", "webm"], ["video/quicktime", "mov"]
+]);
+const validEventUploadId = value =>
+  /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || ""));
+async function removeLocalEventMedia(media) {
+  for (const item of (Array.isArray(media) ? media : [])) {
+    const key = String(item?.key || "");
+    const segments = key.split("/");
+    if (segments.length !== 2 || segments[0] !== "namecheap-events") continue;
+    const dot = segments[1].lastIndexOf(".");
+    if (dot <= 0) continue;
+    const uploadId = segments[1].slice(0, dot);
+    const ext = segments[1].slice(dot + 1).toLowerCase();
+    if (!validEventUploadId(uploadId) || !Array.from(eventMediaExtensions.values()).includes(ext)) continue;
+    const target = path.resolve(STORAGE_ROOT, key);
+    if (target.startsWith(path.resolve(STORAGE_ROOT, "namecheap-events") + path.sep)) {
+      await fs.rm(target, { force: true }).catch(() => {});
+    }
+  }
+}
+
+// Namecheap receives event upload chunks on local disk to avoid object-storage
+// request-size limits. Hatchable remains responsible for admin authentication
+// and event records; the database stores the local media key.
 app.post("/api/admin/events", async (req, res) => {
   const target = new URL("/api/admin/events", HATCHABLE_API_ORIGIN);
 
@@ -104,7 +131,29 @@ app.post("/api/admin/events", async (req, res) => {
       if (value) res.setHeader(name, value);
     }
 
-    return res.end(Buffer.from(await upstream.arrayBuffer()));
+    const responseBytes = Buffer.from(await upstream.arrayBuffer());
+    if (payload.upload_action === "authorize_upload" && upstream.ok) {
+      const uploadId = String(payload.upload_id || "");
+      const fingerprint = eventUploadFingerprint(req);
+      if (validEventUploadId(uploadId) && fingerprint) {
+        authorizedEventUploads.set(uploadId, { fingerprint, expiresAt: Date.now() + EVENT_UPLOAD_AUTH_TTL_MS });
+      }
+    }
+    if (payload.upload_action === "publish_uploaded") {
+      if (upstream.ok) {
+        for (const item of (Array.isArray(payload.media) ? payload.media : [])) {
+          const key = String(item?.key || "");
+          const segments = key.split("/");
+          if (segments.length === 2 && segments[0] === "namecheap-events") {
+            const id = segments[1].split(".")[0];
+            if (validEventUploadId(id)) authorizedEventUploads.delete(id);
+          }
+        }
+      } else if (upstream.status >= 400 && upstream.status < 500) {
+        await removeLocalEventMedia(payload.media);
+      }
+    }
+    return res.end(responseBytes);
   };
 
   const bridgeFailure = error => {
@@ -179,15 +228,15 @@ app.post("/api/admin/events", async (req, res) => {
         });
       }
 
+      if (!hasEventUploadAuthorization(req, uploadId)) {
+        return res.status(401).json({ ok: false, error: "upload_authorization_required" });
+      }
       try {
-        return await forwardJson({
-          upload_action: "upload_chunk",
-          upload_id: uploadId,
-          index,
-          data_base64: bytes.toString("base64")
-        });
+        const saved = await saveEventUploadChunk({ tempRoot: EVENT_UPLOAD_TEMP_DIR, uploadId, index, bytes, maxChunkBytes: EVENT_UPLOAD_CHUNK_BYTES });
+        return res.json(saved);
       } catch (error) {
-        return bridgeFailure(error);
+        console.error("Namecheap event chunk write failed:", error?.code || error?.name || "Error");
+        return res.status(500).json({ ok: false, error: "event_chunk_storage_failed" });
       }
     });
   }
@@ -212,14 +261,49 @@ app.post("/api/admin/events", async (req, res) => {
         const body = req.body || {};
         const action = String(body.upload_action || "");
 
-        if (
-          action !== "finalize_media" &&
-          action !== "publish_uploaded"
-        ) {
-          return res.status(400).json({
-            ok: false,
-            error: "invalid_upload_action"
-          });
+        if (!["authorize_upload", "upload_chunk", "finalize_media", "publish_uploaded"].includes(action)) {
+          return res.status(400).json({ ok: false, error: "invalid_upload_action" });
+        }
+
+        if (action === "authorize_upload") {
+          return forwardJson(body);
+        }
+
+        const uploadId = String(body.upload_id || "");
+        if (action === "upload_chunk") {
+          const index = Number(body.index);
+          const encoded = String(body.data_base64 || "").replace(/^data:[^,]+,/, "");
+          if (!hasEventUploadAuthorization(req, uploadId)) {
+            return res.status(401).json({ ok: false, error: "upload_authorization_required" });
+          }
+          const bytes = Buffer.from(encoded, "base64");
+          try {
+            return res.json(await saveEventUploadChunk({ tempRoot: EVENT_UPLOAD_TEMP_DIR, uploadId, index, bytes, maxChunkBytes: EVENT_UPLOAD_CHUNK_BYTES }));
+          } catch (error) {
+            return res.status(400).json({ ok: false, error: String(error?.message || "event_chunk_storage_failed") });
+          }
+        }
+
+        if (action === "finalize_media") {
+          if (!hasEventUploadAuthorization(req, uploadId)) {
+            return res.status(401).json({ ok: false, error: "upload_authorization_required" });
+          }
+          try {
+            const media = await finalizeLocalEventUpload({
+              tempRoot: EVENT_UPLOAD_TEMP_DIR,
+              storageRoot: STORAGE_ROOT,
+              uploadId,
+              chunks: body.chunks,
+              bytes: body.bytes,
+              contentType: body.content_type,
+              name: body.name,
+              maxChunkBytes: EVENT_UPLOAD_CHUNK_BYTES
+            });
+            return res.json({ ok: true, media });
+          } catch (error) {
+            console.error("Namecheap event finalize failed:", error?.code || error?.name || "Error");
+            return res.status(400).json({ ok: false, error: String(error?.message || "event_finalize_failed") });
+          }
         }
 
         try {
@@ -310,6 +394,19 @@ app.use("/api", async (req, res, next) => {
       } catch {
         res.setHeader("Location", location);
       }
+    }
+
+    if (req.method === "DELETE" && req.path === "/admin/events") {
+      const responseBytes = Buffer.from(await upstream.arrayBuffer());
+      if (upstream.ok) {
+        try {
+          const result = JSON.parse(responseBytes.toString("utf8"));
+          await removeLocalEventMedia((Array.isArray(result.local_media) ? result.local_media : []).map(key => ({ key })));
+        } catch (error) {
+          console.error("Namecheap event media cleanup skipped:", error?.name || "Error");
+        }
+      }
+      return res.end(responseBytes);
     }
 
     if (req.method === "HEAD" || !upstream.body) return res.end();

@@ -70,6 +70,7 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
  async function uploadFile(file,doneRef,total){
   const id=crypto.randomUUID(),chunks=Math.ceil(file.size/CHUNK);
   if(!chunks)return null;
+  await postJson({upload_action:"authorize_upload",upload_id:id});
   for(let batchStart=0;batchStart<chunks;batchStart+=CONCURRENCY){
    const jobs=[];
    for(let index=batchStart;index<Math.min(chunks,batchStart+CONCURRENCY);index++){

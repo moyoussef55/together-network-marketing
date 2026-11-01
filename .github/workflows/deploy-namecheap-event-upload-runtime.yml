@@ -6,6 +6,7 @@ on:
       - namecheap-runtime-prep
     paths:
       - "server.js"
+      - "lib/event-upload-storage.js"
       - ".github/workflows/deploy-namecheap-event-upload-runtime.yml"
 
 permissions:
@@ -18,25 +19,77 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 12
     steps:
       - name: Check out the exact revision
         uses: actions/checkout@v4
 
-      - name: Validate the runtime before touching production
+      - name: Validate runtime syntax and test large local chunk assembly
         uses: actions/setup-node@v4
         with:
           node-version: 20
-      - name: Check runtime syntax and upload handler
+
+      - name: Install and validate application
         shell: bash
         run: |
           set -euo pipefail
           npm install --no-audit --no-fund
           npm run check
           node --check server.js
+          node --check lib/event-upload-storage.js
           grep -Fq 'x-event-upload-mode' server.js
-          grep -Fq 'finalize_media' server.js
-          sha256sum server.js
+          grep -Fq 'authorize_upload' server.js
+          grep -Fq 'saveEventUploadChunk' server.js
+          grep -Fq 'finalizeLocalEventUpload' server.js
+          sha256sum server.js lib/event-upload-storage.js
+
+      - name: Test local upload with multiple chunks and idempotent finalization
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import crypto from "node:crypto";
+          import fs from "node:fs/promises";
+          import os from "node:os";
+          import path from "node:path";
+          import { saveEventUploadChunk, finalizeLocalEventUpload } from "./lib/event-upload-storage.js";
+
+          const root = await fs.mkdtemp(path.join(os.tmpdir(), "together-event-upload-"));
+          try {
+            const tempRoot = path.join(root, "incoming");
+            const storageRoot = path.join(root, "uploads");
+            const source = Buffer.alloc(2 * 1024 * 1024 + 137);
+            crypto.randomFillSync(source);
+            const chunkBytes = 512 * 1024;
+            const chunks = Math.ceil(source.length / chunkBytes);
+            const uploadId = crypto.randomUUID();
+
+            for (let index = 0; index < chunks; index++) {
+              const part = source.subarray(index * chunkBytes, Math.min(source.length, (index + 1) * chunkBytes));
+              const result = await saveEventUploadChunk({
+                tempRoot, uploadId, index, bytes: Buffer.from(part), maxChunkBytes: chunkBytes
+              });
+              assert.equal(result.bytes, part.length);
+            }
+
+            const input = {
+              tempRoot, storageRoot, uploadId, chunks, bytes: source.length,
+              contentType: "video/mp4", name: "test-video.mp4", maxChunkBytes: chunkBytes
+            };
+            const saved = await finalizeLocalEventUpload(input);
+            assert.equal(saved.bytes, source.length);
+            const actual = await fs.readFile(path.join(storageRoot, saved.key));
+            assert.ok(actual.equals(source), "assembled media must exactly match uploaded chunks");
+
+            const retried = await finalizeLocalEventUpload(input);
+            assert.equal(retried.key, saved.key, "retry must return the same completed file");
+            assert.equal(retried.bytes, source.length);
+            console.log("EVENT_DISK_UPLOAD_ASSEMBLY_OK", chunks, saved.bytes, saved.key);
+          } finally {
+            await fs.rm(root, { recursive: true, force: true });
+          }
+          NODE
 
       - name: Pin the verified Namecheap SSH host key
         shell: bash
@@ -53,7 +106,7 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
 
-      - name: Transfer runtime to a protected temporary file
+      - name: Transfer runtime and upload helper to a protected staging directory
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -62,11 +115,18 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          REMOTE_TMP="/home/togeiign/.server.js.event-upload-$RUN_ID"
-          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; cat > '$REMOTE_TMP'" < server.js
-          echo "RUNTIME_STAGED=$REMOTE_TMP"
+          REMOTE_STAGE="/home/togeiign/.event-upload-runtime-stage-$RUN_ID"
+          tar -czf - server.js lib/event-upload-storage.js | ssh \
+            -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" \
+            "umask 077; mkdir -p '$REMOTE_STAGE'; tar -xzf - -C '$REMOTE_STAGE'"
+          echo "RUNTIME_STAGE_READY=$REMOTE_STAGE"
 
-      - name: Back up, atomically install, and restart the Namecheap runtime
+      - name: Back up, atomically install both runtime files, and restart Namecheap
         shell: bash
         env:
           HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
@@ -75,36 +135,77 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          ssh -p "$PORT" \
+            -o BatchMode=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o ConnectTimeout=15 \
+            "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
           set -euo pipefail
           RUN_ID="$1"
           ROOT="/home/togeiign/marketing-network"
-          TARGET="$ROOT/server.js"
-          STAGED="/home/togeiign/.server.js.event-upload-$RUN_ID"
-          INCOMING="$ROOT/.server.js.incoming-$RUN_ID"
+          STAGE="/home/togeiign/.event-upload-runtime-stage-$RUN_ID"
           test -d "$ROOT"
-          test -f "$TARGET"
-          test ! -L "$TARGET"
-          test -s "$STAGED"
-          grep -Fq 'x-event-upload-mode' "$STAGED"
-          cp "$STAGED" "$INCOMING"
-          chmod --reference="$TARGET" "$INCOMING"
-          cmp -s "$STAGED" "$INCOMING"
-          BACKUP="$TARGET.BACKUP-before-event-upload-$(date +%Y%m%d-%H%M%S)"
-          cp -p "$TARGET" "$BACKUP"
-          if ! mv -f "$INCOMING" "$TARGET"; then
-            cp -p "$BACKUP" "$TARGET"
-            exit 1
-          fi
-          if ! cmp -s "$STAGED" "$TARGET"; then
-            cp -p "$BACKUP" "$TARGET"
-            echo "VERIFY_FAILED; restored backup: $BACKUP" >&2
-            exit 1
-          fi
+          test ! -L "$ROOT"
+          test -d "$STAGE"
+          test ! -L "$ROOT/lib"
+          mkdir -p "$ROOT/lib"
+
+          TARGETS=("$ROOT/server.js" "$ROOT/lib/event-upload-storage.js")
+          SOURCES=("$STAGE/server.js" "$STAGE/lib/event-upload-storage.js")
+          INCOMING=("$ROOT/.server.js.incoming-$RUN_ID" "$ROOT/lib/.event-upload-storage.js.incoming-$RUN_ID")
+          BACKUPS=("" "")
+          ABSENT=(0 0)
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+
+          rollback() {
+            echo "EVENT_RUNTIME_INSTALL_FAILED: restoring previous versions" >&2
+            for i in "${!TARGETS[@]}"; do
+              if [ -n "${BACKUPS[$i]}" ] && [ -f "${BACKUPS[$i]}" ]; then
+                cp -p "${BACKUPS[$i]}" "${TARGETS[$i]}" || true
+                echo "RESTORED=${TARGETS[$i]}" >&2
+              elif [ "${ABSENT[$i]}" = "1" ]; then
+                rm -f "${TARGETS[$i]}" || true
+              fi
+              rm -f "${INCOMING[$i]}" || true
+            done
+            rm -rf "$STAGE"
+          }
+          trap rollback ERR
+
+          for i in "${!TARGETS[@]}"; do
+            TARGET="${TARGETS[$i]}"
+            SOURCE="${SOURCES[$i]}"
+            test -s "$SOURCE"
+            test ! -L "$SOURCE"
+            test ! -L "$TARGET"
+            if [ -e "$TARGET" ]; then
+              test -f "$TARGET"
+              BACKUP="$TARGET.BACKUP-before-event-upload-$STAMP-$RUN_ID"
+              cp -p "$TARGET" "$BACKUP"
+              BACKUPS[$i]="$BACKUP"
+              ABSENT[$i]=0
+            else
+              BACKUPS[$i]=""
+              ABSENT[$i]=1
+            fi
+            cp "$SOURCE" "${INCOMING[$i]}"
+            if [ -e "$TARGET" ]; then chmod --reference="$TARGET" "${INCOMING[$i]}"; else chmod 644 "${INCOMING[$i]}"; fi
+            cmp -s "$SOURCE" "${INCOMING[$i]}"
+          done
+
+          for i in "${!TARGETS[@]}"; do
+            mv -f "${INCOMING[$i]}" "${TARGETS[$i]}"
+          done
+          for i in "${!TARGETS[@]}"; do
+            cmp -s "${SOURCES[$i]}" "${TARGETS[$i]}"
+            sha256sum "${TARGETS[$i]}"
+            if [ -n "${BACKUPS[$i]}" ]; then echo "BACKUP_CREATED=${BACKUPS[$i]}"; else echo "NEW_FILE_INSTALLED=${TARGETS[$i]}"; fi
+          done
+
           mkdir -p "$ROOT/tmp"
           touch "$ROOT/tmp/restart.txt"
-          sha256sum "$TARGET"
-          echo "BACKUP_CREATED=$BACKUP"
           echo "NAMECHEAP_EVENT_UPLOAD_RUNTIME_DEPLOY_OK"
-          rm -f "$STAGED" "$INCOMING"
+          trap - ERR
+          rm -rf "$STAGE"
           REMOTE
