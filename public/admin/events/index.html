@@ -88,17 +88,23 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
   save.disabled=true;progress.style.display="block";progress.value=0;
   const total=files.reduce((n,file)=>n+file.size,0),doneRef={value:0},uploaded=[];
   status.textContent="بدء الرفع الثنائي على أجزاء صغيرة قابلة لإعادة المحاولة…";
+  let published=false;
   try{
    for(const file of files)uploaded.push(await uploadFile(file,doneRef,total));
    status.textContent="اكتمل الرفع. جارٍ نشر الحدث…";progress.value=99;
    await postJson({upload_action:"publish_uploaded",title:document.querySelector("#title").value.trim(),description:document.querySelector("#description").value.trim(),event_type:document.querySelector("#eventType").value,event_date:document.querySelector("#eventDate").value,section_title:document.querySelector("#sectionTitle").value.trim(),audience:document.querySelector("#audience").value,media:uploaded});
+   published=true;
    progress.value=100;status.textContent="تم رفع الملفات ونشر الحدث بنجاح.";
    document.querySelector("#title").value="";document.querySelector("#description").value="";document.querySelector("#eventDate").value="";document.querySelector("#sectionTitle").value="";
    document.querySelector("#eventType").value="past";document.querySelector("#audience").value="members";input.value="";
    document.querySelector("#imagePreview").style.display="none";document.querySelector("#videoPreview").style.display="none";
-   await load();
+   try{await load();}catch(refreshError){
+    status.textContent="تم نشر الحدث بنجاح، لكن تعذر تحديث القائمة تلقائيًا. اضغط على «تحديث القائمة».";
+   }
   }catch(error){
-   status.textContent="لم يكتمل الرفع: "+(error?.message||"خطأ غير معروف")+". لم يتم نشر الحدث. يمكنك إعادة المحاولة.";
+   status.textContent=published
+    ?"تم نشر الحدث بنجاح، لكن حدث خطأ أثناء تحديث الواجهة. اضغط على «تحديث القائمة»."
+    :"لم يكتمل الرفع: "+(error?.message||"خطأ غير معروف")+". لم يتم نشر الحدث. يمكنك إعادة المحاولة.";
   }finally{save.disabled=false;}
  };
 })();
