@@ -1,12 +1,7 @@
 name: Deploy verified Hatchable v619 UI batch to Namecheap
 
 on:
-  push:
-    branches:
-      - namecheap-runtime-prep
-    paths:
-      - ".github/workflows/deploy-namecheap-hatchable-ui.yml"
-      - "public/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
