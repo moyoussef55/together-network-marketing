@@ -5,17 +5,17 @@ export const access = "public";
 export const methods = ["GET", "POST"];
 
 const defaults = {
-  siteName: "Together Network Marketing",
-  title: "Together Network Marketing | شبكة تسويق ومبيعات",
-  description: "اكتشف Together Network Marketing، منصة لإدارة شبكة الفريق ومتابعة المبيعات والإنجازات.",
-  keywords: "Together Network Marketing, التسويق الشبكي, إدارة فريق المبيعات",
+  siteName: "Together Digital Marketing",
+  title: "Together Digital Marketing | منصة تسويق إلكتروني ومبيعات",
+  description: "اكتشف Together Digital Marketing، منصة لإدارة شبكة الفريق ومتابعة المبيعات والإنجازات.",
+  keywords: "Together Digital Marketing, التسويق الإلكتروني, إدارة فريق المبيعات",
   canonicalUrl: "https://marketing.together-v-egp.com/",
-  ogTitle: "Together Network Marketing",
-  ogDescription: "منصة Together Network Marketing لإدارة الفريق والمبيعات.",
+  ogTitle: "Together Digital Marketing",
+  ogDescription: "منصة Together Digital Marketing لإدارة الفريق والمبيعات.",
   ogImage: "",
   robots: "index,follow",
   schemaType: "Organization",
-  organizationName: "Together Network Marketing",
+  organizationName: "Together Digital Marketing",
   organizationUrl: "https://marketing.together-v-egp.com/",
   organizationLogo: "",
   language: "ar"
