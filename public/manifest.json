@@ -1,8 +1,8 @@
 {
   "id": "/marketer/dashboard/",
-  "name": "Together Network Marketing",
+  "name": "Together Digital Marketing",
   "short_name": "Together",
-  "description": "توجيذر نيتورك ماركتينج",
+  "description": "توجيذر للتسويق الإلكتروني",
   "lang": "ar",
   "dir": "rtl",
   "start_url": "/marketer/dashboard/?source=home-screen-app",
