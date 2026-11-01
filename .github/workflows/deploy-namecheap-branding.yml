@@ -36,16 +36,24 @@ jobs:
         env:
           SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
           SSH_KNOWN_HOSTS: ${{ secrets.NAMECHEAP_SSH_KNOWN_HOSTS }}
+          SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
         run: |
           set -euo pipefail
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
-          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/id_ed25519"
-          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          printf '%s\\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
           test -s "$HOME/.ssh/id_ed25519"
           test -s "$HOME/.ssh/known_hosts"
+          # Re-key an already trusted host entry to OpenSSH's required host:port form.
+          # Reuses the supplied trusted key; does not trust a newly scanned key.
+          ssh-keygen -F "$SSH_HOST" -f "$HOME/.ssh/known_hosts" |
+            awk -v host="$SSH_HOST" -v port="$SSH_PORT" '$1 !~ /^#/ && NF >= 3 { print "[" host "]:" port, $2, $3 }' \
+              >> "$HOME/.ssh/known_hosts"
+          ssh-keygen -F "[$SSH_HOST]:$SSH_PORT" -f "$HOME/.ssh/known_hosts" >/dev/null
 
       - name: Back up current Namecheap files
         env:
