@@ -1,0 +1,117 @@
+name: Deploy marketer network and BV fix to Namecheap
+
+on:
+  push:
+    branches:
+      - namecheap-runtime-prep
+    paths:
+      - "public/marketer/my-network/index.html"
+      - "api/network/agent.js"
+      - "api/network/bv.js"
+      - ".github/workflows/deploy-marketer-network-fix.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-marketer-network-fix
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - name: Check out exact GitHub revision
+        uses: actions/checkout@v4
+
+      - name: Validate reviewed files
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --check api/network/agent.js
+          node --check api/network/bv.js
+          grep -Fq 'cache:"no-store"' public/marketer/my-network/index.html
+          grep -Fq 'must-revalidate, proxy-revalidate' api/network/agent.js
+          grep -Fq 'must-revalidate, proxy-revalidate' api/network/bv.js
+          sha256sum public/marketer/my-network/index.html api/network/agent.js api/network/bv.js
+
+      - name: Pin verified Namecheap SSH host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' '[server86.web-hosting.com]:21098 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID73iaLX0TvzfqNBhV7rHvhovL8NWH9vzKn5y3eovkWP' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh-keygen -lf "$HOME/.ssh/known_hosts" -E sha256
+
+      - name: Load Namecheap SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+
+      - name: Verify Namecheap Node runtime
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "test -x /home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/node && /home/togeiign/nodevenv/shop.together-v-egp.com/20/bin/node --version"
+
+      - name: Transfer reviewed files to isolated staging
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          FILES=(
+            "public/marketer/my-network/index.html"
+            "api/network/agent.js"
+            "api/network/bv.js"
+          )
+          STAGE="/home/togeiign/.tn-network-fix-stage-$RUN_ID"
+          tar -czf - "${FILES[@]}" | ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "umask 077; mkdir -p '$STAGE'; tar -xzf - -C '$STAGE'"
+          echo "REMOTE_STAGE_READY=$STAGE"
+
+      - name: Back up, atomically install, and verify
+        shell: bash
+        env:
+          HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          ssh -p "$PORT" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" -o ConnectTimeout=15 "$USER@$HOST" "bash -s -- '$RUN_ID'" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="$1"
+          ROOT="/home/togeiign/marketing-network"
+          STAGE="/home/togeiign/.tn-network-fix-stage-$RUN_ID"
+          BACKUP="/home/togeiign/backups/marketer-network-fix-$RUN_ID"
+          FILES=(
+            "public/marketer/my-network/index.html"
+            "api/network/agent.js"
+            "api/network/bv.js"
+          )
+          mkdir -p "$BACKUP"
+          for FILE in "${FILES[@]}"; do
+            mkdir -p "$BACKUP/$(dirname "$FILE")" "$ROOT/$(dirname "$FILE")"
+            if [ -f "$ROOT/$FILE" ]; then cp -p "$ROOT/$FILE" "$BACKUP/$FILE"; fi
+            install -m 0644 "$STAGE/$FILE" "$ROOT/$FILE.incoming-$RUN_ID"
+            mv -f "$ROOT/$FILE.incoming-$RUN_ID" "$ROOT/$FILE"
+            cmp -s "$STAGE/$FILE" "$ROOT/$FILE"
+          done
+          mkdir -p "$ROOT/tmp"
+          touch "$ROOT/tmp/restart.txt"
+          echo "NAMECHEAP_MARKETER_NETWORK_FIX_OK"
+          echo "BACKUP=$BACKUP"
+          sha256sum "${FILES[@]/#/$ROOT/}"
+          rm -rf "$STAGE"
+          REMOTE
