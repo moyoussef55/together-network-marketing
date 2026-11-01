@@ -18,7 +18,7 @@ export default async function(req,res) {
       model: "gemini",
       maxTokens: 2400,
       system: "You are a careful technical SEO editor. Never invent facts or promise rankings. Return ONLY one compact valid JSON object with keys title, description, keywords, ogTitle, ogDescription, schemaType, focusPhrase, suggestions. Keep title concise, description about 140-160 characters when natural, keywords to 5-8 phrases, and suggestions to exactly 3 short actionable tips. schemaType must be Organization, WebSite, EducationalOrganization, or LocalBusiness. Do not include markdown or extra text. Write all values in " + language + ".",
-      prompt: JSON.stringify({topic,keywords,content,site:"Together Network Marketing",primaryDomain:"https://marketing.together-v-egp.com"}),
+      prompt: JSON.stringify({topic,keywords,content,site:"Together Digital Marketing",primaryDomain:"https://marketing.together-v-egp.com"}),
     });
     if (result.finishReason === "length") return res.status(502).json({ok:false,error:"ai_output_truncated"});
     const raw = String(result.text || "").trim().replace(/^\x60{3}(?:json)?\s*/i,"").replace(/\s*\x60{3}$/,"");
