@@ -4,6 +4,9 @@ import { requireNetworkUser } from "../../lib/network-auth.js";
 export const access = "public";
 
 export default async function handler(req, res) {
+  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma","no-cache");
+  res.setHeader("Expires","0");
   const user = await requireNetworkUser(req,res);
   if (!user) return;
   const uid = user.id;
@@ -25,7 +28,7 @@ export default async function handler(req, res) {
          SELECT a.id, a.display_name, a.referral_code, a.phone, a.avatar_url
            FROM network n
            JOIN app_profiles a ON a.id=n.member_id
-          WHERE a.deleted_at IS NULL
+          WHERE a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false
             AND (
               a.id=$2
               OR a.referral_code=$3
@@ -99,10 +102,13 @@ export default async function handler(req, res) {
             LIMIT 1
          ) placement ON true
         WHERE a.id=$1 AND a.deleted_at IS NULL
+          AND (a.id=$2 OR COALESCE(a.network_hidden,false)=false)
         LIMIT 1`,
-      [targetId]
+      [targetId,uid]
     );
     if (!profile.rows.length) {
+      const hidden=await db.query("SELECT id FROM app_profiles WHERE id=$1 AND deleted_at IS NULL AND COALESCE(network_hidden,false)=true LIMIT 1",[targetId]);
+      if(hidden.rows.length)return res.status(404).json({error:"agent_not_found"});
       const source=await db.query("SELECT source_id,payload FROM legacy_import_source_records WHERE collection_name='agents' AND source_id=$1 LIMIT 1",[targetId]);
       if(!source.rows.length)return res.status(404).json({error:"agent_not_found"});
       const x=source.rows[0].payload||{};
@@ -133,7 +139,7 @@ export default async function handler(req, res) {
       const sp = await db.query(
         `SELECT id, display_name, referral_code
            FROM app_profiles
-          WHERE id=$1 AND deleted_at IS NULL
+          WHERE id=$1 AND deleted_at IS NULL AND COALESCE(network_hidden,false)=false
           LIMIT 1`,
         [profile.rows[0].sponsor_id]
       );
@@ -166,7 +172,7 @@ export default async function handler(req, res) {
          LEFT JOIN app_profiles o ON o.id=sp.parent_id
          LEFT JOIN mapped pm ON pm.target_id=sp.parent_id
         WHERE (o.id IS NOT NULL OR pm.source_id IS NOT NULL)
-          AND (o.deleted_at IS NULL OR o.id IS NULL)
+          AND (o.id IS NULL OR (o.deleted_at IS NULL AND COALESCE(o.network_hidden,false)=false))
        LIMIT 1`,
       [targetId]
     );
@@ -175,7 +181,7 @@ export default async function handler(req, res) {
       const oldUp = await db.query(
         `SELECT o.id,o.display_name,o.referral_code,o.avatar_url
            FROM network_placements p JOIN app_profiles o ON o.id=p.owner_marketer_id
-          WHERE p.member_id=$1 AND p.account_position IN (2,3) AND o.deleted_at IS NULL
+          WHERE p.member_id=$1 AND p.account_position IN (2,3) AND o.deleted_at IS NULL AND COALESCE(o.network_hidden,false)=false
           ORDER BY p.created_at DESC NULLS LAST LIMIT 1`,[targetId]);
       upline = oldUp.rows[0] || null;
     }
@@ -203,7 +209,7 @@ export default async function handler(req, res) {
            ) v(child_source,pos,side)
            LEFT JOIN mapped c ON c.source_id=v.child_source
            LEFT JOIN app_profiles a ON a.id=COALESCE(c.target_id,v.child_source)
-          WHERE m.target_id=$1 AND NULLIF(v.child_source,'') IS NOT NULL
+          WHERE m.target_id=$1 AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false)) AND NULLIF(v.child_source,'') IS NOT NULL
             AND v.child_source<>'000000000000000000000000'
        ), db_rows AS (
          SELECT p.account_position,p.side,p.member_id,p.parent_member_id,
@@ -211,6 +217,7 @@ export default async function handler(req, res) {
                 a.referral_code,a.avatar_url
            FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id
           WHERE p.owner_marketer_id=$1 AND p.account_position IN (2,3)
+            AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false))
        )
        -- Imported source slots take precedence; retain legacy rows only for slots absent from source.
        SELECT * FROM source_rows
@@ -251,7 +258,7 @@ export default async function handler(req, res) {
          UNION ALL
          SELECT p.member_id,p.created_at FROM network_placements p JOIN n ON p.owner_marketer_id=n.member_id WHERE p.account_position IN (2,3)
        ) SELECT n.member_id,COALESCE(a.display_name,a.referral_code,n.member_id::text) member_name,a.referral_code,a.avatar_url,n.created_at
-         FROM n LEFT JOIN app_profiles a ON a.id=n.member_id ORDER BY n.created_at NULLS LAST LIMIT 4`,[targetId]
+         FROM n LEFT JOIN app_profiles a ON a.id=n.member_id WHERE a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false) ORDER BY n.created_at NULLS LAST LIMIT 4`,[targetId]
     );
     const firstFour=[];
     if (descendants.rows.length) {
@@ -264,6 +271,7 @@ export default async function handler(req, res) {
            LEFT JOIN app_profiles a ON a.id=p.member_id
           WHERE p.owner_marketer_id::text=ANY($1::text[])
             AND p.account_position IN (2,3)
+            AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false))
           ORDER BY p.owner_marketer_id,p.account_position,
                    CASE WHEN p.side='left' THEN 0 ELSE 1 END`,
         [firstFourIds]
