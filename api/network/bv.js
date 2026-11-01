@@ -5,6 +5,9 @@ export const access = "public";
 export const methods = ["GET"];
 
 export default async function handler(req,res){
+  res.setHeader("Cache-Control","no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma","no-cache");
+  res.setHeader("Expires","0");
   const user=await requireNetworkUser(req,res);
   if(!user)return;
   const uid=user.id;
@@ -71,29 +74,32 @@ export default async function handler(req,res){
   // weekly settlement job; that job then persists the remainder as the next carry.
   const carryView=await db.query(`
     WITH last_settlement AS (
-      SELECT MAX(settled_at) AS settled_at
-        FROM network_bv_settlements WHERE member_id=$1 AND account_position=$2
+      SELECT week_end,carry_right,carry_left
+        FROM network_bv_settlements
+       WHERE member_id=$1 AND account_position=$2
+       ORDER BY week_end DESC,week_start DESC,id DESC LIMIT 1
     ), cycle_start AS (
       SELECT COALESCE(
-        (SELECT settled_at FROM last_settlement),
+        (SELECT (week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM last_settlement),
         ((date_trunc('week',timezone('Africa/Cairo',now()))::date - 2)::timestamp AT TIME ZONE 'Africa/Cairo')
       ) AS start_at
     ), period_bv AS (
       SELECT COALESCE(SUM(bv) FILTER(WHERE side='right'),0)::bigint AS right_bv,
              COALESCE(SUM(bv) FILTER(WHERE side='left'),0)::bigint AS left_bv
         FROM network_bv_ledger,cycle_start
-       WHERE upline_member_id=$1 AND account_position=$2 AND sale_at > cycle_start.start_at
+       WHERE upline_member_id=$1 AND account_position=$2 AND sale_at >= cycle_start.start_at
     )
-    SELECT right_bv,left_bv
+    SELECT COALESCE((SELECT carry_right FROM last_settlement),$3::bigint,0)+right_bv AS right_bv,
+           COALESCE((SELECT carry_left FROM last_settlement),$4::bigint,0)+left_bv AS left_bv
       FROM period_bv
-  `,[requested,position]);
+  `,[requested,position,Number(b.carry_right||0),Number(b.carry_left||0)]);
   if(carryView.rows[0]){
-    b.carry_right=Number(b.carry_right||0)+Number(carryView.rows[0].right_bv||0);
-    b.carry_left=Number(b.carry_left||0)+Number(carryView.rows[0].left_bv||0);
+    b.carry_right=Number(carryView.rows[0].right_bv||0);
+    b.carry_left=Number(carryView.rows[0].left_bv||0);
   }
 
   const checks=await db.query(`SELECT id,week_start,week_end,right_bv,left_bv,matched_bv,check_amount,carry_right,carry_left,settled_at
-    FROM network_bv_settlements WHERE member_id=$1 AND account_position=$2 ORDER BY settled_at DESC LIMIT 12`,[requested,position]);
+    FROM network_bv_settlements WHERE member_id=$1 AND account_position=$2 ORDER BY week_end DESC,week_start DESC,id DESC LIMIT 12`,[requested,position]);
 
   const recent=await db.query(`SELECT order_id,bv,side,sale_at,source_member_id FROM network_bv_ledger
     WHERE upline_member_id=$1 AND account_position=$2 ORDER BY sale_at DESC LIMIT 100`,[requested,position]);
