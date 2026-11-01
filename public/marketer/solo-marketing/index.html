@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>التسويق المنفرد — Together</title>
+<link rel="stylesheet" href="/theme.css">
+<script src="/network-session.js"></script>
+<style>
+:root{--sm-bg:#08192b;--sm-card:#102a43;--sm-line:#29465f;--sm-text:#f4f8fc;--sm-muted:#a9bfd2;--sm-accent:#e1bd69;--sm-green:#20b981;--sm-red:#f05252}
+body{background:var(--sm-bg);color:var(--sm-text)}
+.sm-wrap{max-width:1240px;margin:0 auto;padding:18px 20px 48px}
+.sm-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:18px}
+.sm-head h1{margin:0;color:var(--sm-accent);font-size:clamp(24px,4vw,34px)}
+.sm-head p{margin:6px 0 0;color:var(--sm-muted)}
+.sm-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+.sm-tab,.sm-btn{border:1px solid var(--sm-line);border-radius:11px;padding:10px 15px;background:#183650;color:var(--sm-text);font:inherit;font-weight:800;cursor:pointer;text-decoration:none}
+.sm-tab.active,.sm-btn.primary{background:linear-gradient(135deg,#d8b45d,#f0d58d);border-color:#d8b45d;color:#172a3c}
+.sm-note{border:1px solid #3d6078;background:#102e46;color:#c8e2f3;border-radius:12px;padding:12px 14px;line-height:1.7}
+.sm-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:18px}
+.sm-product{background:var(--sm-card);border:1px solid var(--sm-line);border-radius:17px;overflow:hidden;box-shadow:0 10px 26px #0002;display:flex;flex-direction:column;min-width:0}
+.sm-image{height:220px;background:#0b2035;display:grid;place-items:center;overflow:hidden}
+.sm-image img{width:100%;height:100%;object-fit:cover}
+.sm-image .no-image{font-size:52px;color:#7994a9}
+.sm-product-body{padding:15px;display:flex;flex-direction:column;gap:10px;flex:1}
+.sm-product h3{font-size:19px;margin:0;color:#f5d98e}
+.sm-short{color:var(--sm-muted);line-height:1.7;font-size:14px}
+.sm-long{color:var(--sm-muted);line-height:1.8;font-size:13px;white-space:pre-wrap}
+.sm-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sm-meta div{border:1px solid var(--sm-line);border-radius:10px;padding:8px;background:#091d31}
+.sm-meta small{display:block;color:var(--sm-muted);font-size:11px;margin-bottom:4px}
+.sm-meta strong{font-size:15px}
+.sm-price{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid #866d3a;background:#1b3348;border-radius:12px;padding:10px}
+.sm-price-value{font-size:25px;font-weight:900;direction:ltr;white-space:nowrap;color:#f4d88c}
+.sm-stepper{display:flex;gap:7px;align-items:center}
+.sm-stepper button{width:36px;height:36px;border:1px solid #d2b35f;border-radius:10px;background:#d6b562;color:#142b40;font-size:23px;font-weight:900;cursor:pointer}
+.sm-stepper button:disabled{opacity:.35;cursor:not-allowed}
+.sm-commission{font-size:13px;color:#75e0b4;font-weight:800}
+.sm-limit{min-height:20px;color:#ff7777;font-weight:800;font-size:12px}
+.sm-variants{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sm-variants select,.sm-field input,.sm-field select,.sm-field textarea{width:100%;box-sizing:border-box;padding:11px;border-radius:10px;border:1px solid var(--sm-line);background:#091d31;color:var(--sm-text);font:inherit}
+.sm-details{border-top:1px solid var(--sm-line);padding-top:9px}
+.sm-details summary{cursor:pointer;color:#f1d58b;font-weight:800}
+.sm-stock{font-size:13px;color:var(--sm-muted)}
+.sm-buy{width:100%;margin-top:auto}
+.sm-empty{padding:32px;text-align:center;border:1px dashed var(--sm-line);border-radius:14px;color:var(--sm-muted);grid-column:1/-1}
+.sm-orders{display:grid;gap:12px;margin-top:16px}
+.sm-order{background:var(--sm-card);border:1px solid var(--sm-line);border-radius:14px;padding:15px}
+.sm-order-top{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.sm-status{display:inline-block;border-radius:20px;padding:6px 11px;background:#244c55;color:#b3f4de;font-size:12px;font-weight:900}
+.sm-status.wait{background:#493b22;color:#ffe1a1}
+.sm-order-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.sm-order-grid div{background:#091d31;border:1px solid var(--sm-line);border-radius:9px;padding:9px;min-width:0}
+.sm-order-grid small{display:block;color:var(--sm-muted);font-size:11px}.sm-order-grid b{display:block;margin-top:4px;overflow-wrap:anywhere}
+.sm-modal{position:fixed;inset:0;background:#000b;z-index:14000;display:none;align-items:center;justify-content:center;padding:14px}
+.sm-modal.open{display:flex}
+.sm-dialog{width:min(600px,100%);max-height:92vh;overflow:auto;background:#102a43;color:#f4f8fc;border:1px solid #3e5c76;border-radius:18px;padding:20px;box-shadow:0 25px 80px #0008}
+.sm-dialog h2{margin:0 0 8px;color:#f2d68c}.sm-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.sm-field{display:grid;gap:6px}.sm-field.full{grid-column:1/-1}.sm-field label{font-size:13px;color:#d4e0eb;font-weight:800}.sm-totals{border:1px solid #8b7745;background:#1c354a;padding:12px;border-radius:12px;display:grid;gap:7px;margin:12px 0}.sm-total{font-size:21px;font-weight:900;color:#f7d98a}.sm-error{color:#ff8989;font-weight:800}.sm-success{text-align:center;padding:22px}.sm-success .tick{font-size:48px;color:#43d69a}
+@media(max-width:950px){.sm-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.sm-wrap{padding:12px}.sm-grid{grid-template-columns:1fr}.sm-image{height:240px}.sm-form-grid{grid-template-columns:1fr}.sm-field.full{grid-column:auto}.sm-order-grid{grid-template-columns:1fr 1fr}.sm-head{padding-top:34px}}
+body[data-theme="light"]{--sm-bg:#f5f0e8;--sm-card:#fffdf9;--sm-line:#ddcbb6;--sm-text:#36291f;--sm-muted:#746253;background:var(--sm-bg);color:var(--sm-text)}
+body[data-theme="light"] .sm-head h1{color:#704b28;-webkit-text-fill-color:#704b28}
+body[data-theme="light"] .sm-product,body[data-theme="light"] .sm-order,body[data-theme="light"] .sm-dialog{background:#fffdf9!important;color:#36291f!important;border-color:#ddcbb6!important}
+body[data-theme="light"] .sm-product h3,body[data-theme="light"] .sm-details summary,body[data-theme="light"] .sm-dialog h2{color:#704b28!important;-webkit-text-fill-color:#704b28!important}
+body[data-theme="light"] .sm-short,body[data-theme="light"] .sm-long,body[data-theme="light"] .sm-stock,body[data-theme="light"] .sm-head p{color:#746253!important;-webkit-text-fill-color:#746253!important}
+body[data-theme="light"] .sm-meta div,body[data-theme="light"] .sm-order-grid div,body[data-theme="light"] .sm-field input,body[data-theme="light"] .sm-field select,body[data-theme="light"] .sm-field textarea{background:#f8f1e8!important;color:#36291f!important;border-color:#ddcbb6!important}
+body[data-theme="light"] .sm-price,body[data-theme="light"] .sm-totals{background:#f6ead7!important;color:#36291f!important;border-color:#c8aa78!important}
+body[data-theme="light"] .sm-price-value,body[data-theme="light"] .sm-total{color:#765126!important;-webkit-text-fill-color:#765126!important}
+body[data-theme="light"] .sm-note{background:#e8f2f4!important;color:#285064!important;border-color:#bad1d9!important}
+body[data-theme="light"] .sm-tab,body[data-theme="light"] .sm-btn{background:#efe4d6;color:#493424;border-color:#d7c3ae}
+body[data-theme="light"] .sm-tab.active,body[data-theme="light"] .sm-btn.primary{background:#e2bf72;color:#382915;border-color:#caa45b}
+body[data-theme="light"] .sm-field label{color:#564331}
+</style>
+</head>
+<body class="app-shell">
+<main class="main-content">
+<section class="sm-wrap">
+<header class="sm-head">
+<div><p class="eyebrow">مساحة البيع والربح الإضافي</p><h1>التسويق المنفرد</h1><p>اعرض المنتجات وحدد سعر البيع داخل حدود المنتج، وتابع طلباتك وعمولاتك.</p></div>
+<a class="sm-btn" href="/marketer/dashboard/">لوحة التحكم</a>
+</header>
+<div class="sm-note">الطلب من هذا القسم لا يخصم أي مبلغ من محفظتك ولا يضيف نقاط BV. تُضاف عمولتك إلى الخزنة فور تأكيد الطلب من الإدارة.</div>
+<nav class="sm-tabs"><button class="sm-tab active" id="productsTab" type="button" onclick="showTab('products')">المنتجات المتاحة</button><button class="sm-tab" id="ordersTab" type="button" onclick="showTab('orders')">متابعة طلباتي</button></nav>
+<section id="productsPanel"><div id="productsGrid" class="sm-grid"><div class="sm-empty">جارٍ تحميل المنتجات…</div></div></section>
+<section id="ordersPanel" hidden><div class="sm-head"><div><h2 style="margin:0">متابعة طلباتي</h2><p>تظهر هنا أي تحديثات لحالة الطلب من الإدارة.</p></div><button class="sm-btn" onclick="loadOrders()">تحديث الحالة</button></div><div id="ordersList" class="sm-orders"><div class="sm-empty">جارٍ تحميل الطلبات…</div></div></section>
+</section>
+</main>
+<div id="buyModal" class="sm-modal" role="dialog" aria-modal="true" aria-labelledby="buyTitle"><div class="sm-dialog">
+<div class="sm-order-top"><h2 id="buyTitle">بيانات شراء المنتج</h2><button class="sm-btn" type="button" onclick="closeBuy()">إغلاق</button></div>
+<div id="buyProductSummary" class="sm-note" style="margin:10px 0"></div>
+<form id="buyForm"><div class="sm-form-grid">
+<div class="sm-field full"><label for="buyerName">الاسم بالكامل</label><input id="buyerName" name="buyer_full_name" autocomplete="name" required minlength="4" maxlength="160"></div>
+<div class="sm-field"><label for="buyerPhone">رقم الهاتف</label><input id="buyerPhone" name="buyer_phone" type="tel" autocomplete="tel" required maxlength="20"></div>
+<div class="sm-field"><label for="buyerGovernorate">المحافظة</label><select id="buyerGovernorate" name="governorate" required><option value="">اختر المحافظة</option></select></div>
+<div class="sm-field full"><label for="buyerAddress">العنوان بالتفصيل</label><textarea id="buyerAddress" name="delivery_address" rows="3" required minlength="8" maxlength="1000"></textarea></div>
+</div><div class="sm-totals"><div>سعر المنتج: <b id="sumProduct">0</b> ج.م</div><div>الشحن: <b id="sumShipping">—</b></div><div class="sm-total">الإجمالي: <span id="sumTotal">—</span></div></div>
+<div id="buyError" class="sm-error" role="alert"></div><button id="placeOrderBtn" class="sm-btn primary" type="submit" style="width:100%">شراء وتسجيل الطلب</button></form>
+</div></div>
+<div id="thankModal" class="sm-modal" role="dialog" aria-modal="true"><div class="sm-dialog sm-success"><div class="tick">✓</div><h2>شكرًا لطلبك!</h2><p id="thankText">تم تسجيل طلبك بنجاح.</p><button class="sm-btn primary" onclick="closeThank()">متابعة طلباتي</button></div></div>
+<script>
+const $=s=>document.querySelector(s), money=n=>Number(n||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let products=[],rates=[],orders=[],prices={},selected=null,selectedVariant={size:"",color:""},shippingFee=null;
+function apiError(k){const m={product_unavailable:"هذا المنتج لم يعد متاحًا.",out_of_stock:"نفد مخزون هذا المنتج.",price_out_of_range:"السعر المحدد خارج الحدود المسموح بها.",invalid_size:"المقاس المختار غير متاح.",invalid_color:"اللون المختار غير متاح.",shipping_unavailable:"الشحن غير متاح لهذه المحافظة حاليًا.",invalid_or_missing_order_fields:"يرجى مراجعة بيانات العميل والعنوان ورقم الهاتف."};return m[k]||"تعذر تسجيل الطلب. راجع البيانات وحاول مرة أخرى."}
+function showTab(which){const p=which==="products";$("#productsPanel").hidden=!p;$("#ordersPanel").hidden=p;$("#productsTab").classList.toggle("active",p);$("#ordersTab").classList.toggle("active",!p);if(!p)loadOrders()}
+async function load(){try{const r=await fetch("/api/marketer/solo-marketing",{credentials:"same-origin",cache:"no-store"});if(r.status===401){location.href="/login?next=/marketer/solo-marketing/";return}const d=await r.json();if(!r.ok)throw new Error(d.error||"load_failed");products=d.products||[];rates=(d.shipping_rates||[]).filter(x=>x.active);orders=d.orders||[];for(const p of products)if(prices[p.id]==null)prices[p.id]=Number(p.starting_price);renderProducts();renderOrders()}catch(e){$("#productsGrid").innerHTML='<div class="sm-empty">تعذر تحميل المنتجات. حدّث الصفحة أو سجّل الدخول من جديد.</div>'}}
+function renderProducts(){if(!products.length){$("#productsGrid").innerHTML='<div class="sm-empty">لا توجد منتجات متاحة حاليًا. تابع الصفحة لاحقًا.</div>';return}
+$("#productsGrid").innerHTML=products.map(p=>{const price=Number(prices[p.id]??p.starting_price),min=Number(p.min_price),max=Number(p.max_price),commission=Math.max(0,price-Number(p.base_price)),limit=price>=max?"لقد وصلت للحد الأقصى من رفع سعر هذا المنتج":price<=min?"لقد وصلت للحد الأدنى من سعر هذا المنتج":"";
+const variants=p.product_type==="clothing"?'<div class="sm-variants"><select id="size-'+p.id+'"><option value="">اختر المقاس</option>'+(p.sizes||[]).map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join("")+'</select><select id="color-'+p.id+'"><option value="">اختر اللون</option>'+(p.colors||[]).map(v=>'<option value="'+esc(v)+'">'+esc(v)+'</option>').join("")+'</select></div>':"";
+return '<article class="sm-product"><div class="sm-image">'+(p.image_url?'<img loading="lazy" src="'+esc(p.image_url)+'" alt="'+esc(p.name)+'">':'<div class="no-image">📦</div>')+'</div><div class="sm-product-body"><h3>'+esc(p.name)+'</h3><div class="sm-short">'+esc(p.short_description||"")+'</div><div class="sm-meta"><div><small>السعر الأساسي</small><strong>'+money(p.base_price)+' ج.م</strong></div><div><small>عمولتك الحالية</small><strong class="sm-commission" id="comm-'+p.id+'">'+money(commission)+' ج.م</strong></div></div><div class="sm-price"><div><small style="display:block;color:var(--sm-muted)">سعر البيع</small><div class="sm-price-value" id="price-'+p.id+'">'+money(price)+'</div></div><div class="sm-stepper"><button type="button" aria-label="زيادة السعر" '+(price>=max?"disabled":"")+' onclick="changePrice(\''+p.id+'\',1)">+</button><button type="button" aria-label="تقليل السعر" '+(price<=min?"disabled":"")+' onclick="changePrice(\''+p.id+'\',-1)">−</button></div></div><div class="sm-limit" id="limit-'+p.id+'">'+esc(limit)+'</div><div class="sm-stock">المخزون المتاح: <b>'+Number(p.stock||0)+'</b> قطعة</div>'+variants+'<details class="sm-details"><summary>عرض الوصف الطويل</summary><div class="sm-long">'+esc(p.description||"لا يوجد وصف إضافي.")+'</div></details><button class="sm-btn primary sm-buy" type="button" '+(Number(p.stock)<=0?"disabled":"")+' onclick="openBuy(\''+p.id+'\')">'+(Number(p.stock)>0?"شراء الآن":"نفد المخزون")+'</button></div></article>'}).join("")}
+function changePrice(id,delta){const p=products.find(x=>x.id===id);if(!p)return;const old=Number(prices[id]),next=Math.min(Number(p.max_price),Math.max(Number(p.min_price),old+delta));prices[id]=next;const atMax=next>=Number(p.max_price),atMin=next<=Number(p.min_price);$("#price-"+id).textContent=money(next);$("#comm-"+id).textContent=money(Math.max(0,next-Number(p.base_price)))+" ج.م";$("#limit-"+id).textContent=atMax?"لقد وصلت للحد الأقصى من رفع سعر هذا المنتج":atMin?"لقد وصلت للحد الأدنى من سعر هذا المنتج":"";const buttons=$("#price-"+id).closest(".sm-price").querySelectorAll("button");buttons[0].disabled=atMax;buttons[1].disabled=atMin}
+function openBuy(id){const p=products.find(x=>x.id===id);if(!p)return;selected=p;selectedVariant={size:"",color:""};if(p.product_type==="clothing"){selectedVariant.size=$("#size-"+id)?.value||"";selectedVariant.color=$("#color-"+id)?.value||"";if(!selectedVariant.size||!selectedVariant.color){alert("يرجى اختيار المقاس واللون أولًا.");return}}
+$("#buyProductSummary").textContent=p.name+" — سعر البيع "+money(prices[id])+" ج.م — عمولتك "+money(Number(prices[id])-Number(p.base_price))+" ج.م";$("#sumProduct").textContent=money(prices[id]);$("#buyerGovernorate").innerHTML='<option value="">اختر المحافظة</option>'+rates.map(x=>'<option value="'+esc(x.governorate)+'">'+esc(x.governorate)+'</option>').join("");$("#sumShipping").textContent="اختر المحافظة";$("#sumTotal").textContent="—";$("#buyError").textContent="";$("#placeOrderBtn").disabled=!rates.length;$("#placeOrderBtn").textContent=rates.length?"شراء وتسجيل الطلب":"الشحن غير مفعّل حاليًا";shippingFee=null;$("#buyModal").classList.add("open")}
+function updateShipping(){const gov=$("#buyerGovernorate").value;const rate=rates.find(x=>x.governorate===gov);shippingFee=rate?Number(rate.fee):null;$("#sumShipping").textContent=rate?money(rate.fee)+" ج.م":"اختر المحافظة";$("#sumTotal").textContent=rate?money(Number(prices[selected.id])+Number(rate.fee))+" ج.م":"—";$("#placeOrderBtn").disabled=!rate}
+$("#buyerGovernorate").addEventListener("change",updateShipping);
+function closeBuy(){$("#buyModal").classList.remove("open")}
+$("#buyForm").addEventListener("submit",async e=>{e.preventDefault();if(!selected||shippingFee==null)return;const btn=$("#placeOrderBtn");btn.disabled=true;btn.textContent="جارٍ تسجيل الطلب…";$("#buyError").textContent="";const body={action:"create_order",product_id:selected.id,selling_price:Number(prices[selected.id]),selected_size:selectedVariant.size,selected_color:selectedVariant.color,buyer_full_name:$("#buyerName").value,buyer_phone:$("#buyerPhone").value,governorate:$("#buyerGovernorate").value,delivery_address:$("#buyerAddress").value};try{const r=await fetch("/api/marketer/solo-marketing",{method:"POST",credentials:"same-origin",headers:{"content-type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)throw new Error(apiError(d.error));closeBuy();$("#thankText").textContent=(d.thank_you||"تم تسجيل طلبك بنجاح.")+" كود الطلب: "+(d.order?.order_code||"");$("#thankModal").classList.add("open");$("#buyForm").reset();await load()}catch(err){$("#buyError").textContent=err.message||"تعذر تسجيل الطلب."}finally{btn.disabled=false;btn.textContent="شراء وتسجيل الطلب"}});
+function closeThank(){$("#thankModal").classList.remove("open");showTab("orders")}
+function renderOrders(){if(!orders.length){$("#ordersList").innerHTML='<div class="sm-empty">لم تسجل أي طلبات حتى الآن.</div>';return}
+$("#ordersList").innerHTML=orders.map(o=>'<article class="sm-order"><div class="sm-order-top"><div><b>كود الطلب: '+esc(o.order_code)+'</b><div style="color:var(--sm-muted);font-size:12px;margin-top:5px">'+new Date(o.created_at).toLocaleString("ar-EG")+'</div></div><span class="sm-status '+(o.commission_credited_at?"":"wait")+'">'+esc(o.status||"طلب جديد")+'</span></div><div style="margin-top:10px;font-weight:800">'+esc(o.product_name)+'</div><div class="sm-order-grid"><div><small>سعر المنتج</small><b>'+money(o.selling_price)+' ج.م</b></div><div><small>الشحن</small><b>'+money(o.shipping_fee)+' ج.م</b></div><div><small>الإجمالي</small><b>'+money(o.total)+' ج.م</b></div><div><small>عمولتك</small><b>'+money(o.commission)+' ج.م</b></div><div><small>المقاس / اللون</small><b>'+esc([o.selected_size,o.selected_color].filter(Boolean).join(" / ")||"—")+'</b></div><div><small>حالة العمولة</small><b class="'+(o.commission_credited_at?"sm-commission":"")+'">'+(o.commission_credited_at?"تم إضافتها إلى الخزنة":"تنتظر تأكيد الإدارة")+'</b></div></div></article>').join("")}
+async function loadOrders(){try{const r=await fetch("/api/marketer/solo-marketing",{credentials:"same-origin",cache:"no-store"});if(r.status===401){location.href="/login?next=/marketer/solo-marketing/";return}const d=await r.json();if(r.ok){orders=d.orders||[];renderOrders()}}catch{}}
+load();
+setInterval(()=>{if(!document.hidden)loadOrders()},25000);
+</script>
+<script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=566"></script><script src="/theme-toggle.js?v=600"></script>
+</body></html>

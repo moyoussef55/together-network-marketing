@@ -82,6 +82,11 @@ export default async function handler(req,res){
   if (typeof scopedWallet === "string") { try { scopedWallet = JSON.parse(scopedWallet); } catch { scopedWallet = {}; } }
   const wallet = { rows: scopedWallet.wallet_found ? [{ balance: scopedWallet.balance }] : [] };
   const transactions = { rows: Array.isArray(scopedWallet.transactions) ? scopedWallet.transactions : [] };
+  // Read credited solo-marketing wallet entries through a scoped summary.
+  // This is display-only; it never changes the spendable wallet balance.
+  const soloMarketingResult = await db.query("SELECT get_solo_marketing_commission_state($1) AS state", [uid]);
+  let soloMarketingState = soloMarketingResult.rows[0]?.state || {};
+  if (typeof soloMarketingState === "string") { try { soloMarketingState = JSON.parse(soloMarketingState); } catch { soloMarketingState = {}; } }
   // Weekly checks are credited to wallets when paid. Keep the display tied to the
   // spendable wallet balance; summing settlement rows again would count paid checks twice.
   const pendingWithdrawals = withdrawals.rows
@@ -106,6 +111,7 @@ export default async function handler(req,res){
     earnings:{
       direct_commissions:{total:Number(direct.rows[0]?.total||0),paid:Number(direct.rows[0]?.paid||0),payable:Number(direct.rows[0]?.payable||0),pending:Number(direct.rows[0]?.pending||0)},
       weekly_checks:{total:Number(checks.rows[0]?.total||0),count:Number(checks.rows[0]?.count||0)},
+      solo_marketing_commissions:{total:Number(soloMarketingState.total||0),count:Number(soloMarketingState.count||0),transactions:Array.isArray(soloMarketingState.transactions)?soloMarketingState.transactions:[]},
       other_commissions:{total:Number(otherCommissions.rows[0]?.total||0),paid:Number(otherCommissions.rows[0]?.paid||0),pending:Number(otherCommissions.rows[0]?.pending||0)}
     },
     transactions:[
