@@ -7,6 +7,31 @@
 body{margin:0;background:#f3f6fb;color:#111827;font-family:Tahoma,Arial,sans-serif}.shell{max-width:1120px;margin:auto;padding:18px}.top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:14px 0}.panel{background:#fff;border:1px solid #e2e8f0;border-radius:16px;padding:22px;margin:16px 0;box-shadow:0 8px 24px #1018280a}.panel h1,.panel h2{margin-top:0}.hint{color:#64748b;line-height:1.8}.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.field{display:grid;gap:7px;font-weight:800}.field input,.field textarea,.field select{box-sizing:border-box;width:100%;border:1px solid #cbd5e1;border-radius:10px;padding:12px;background:#fff;color:#111827;font:inherit}.field textarea{min-height:95px;resize:vertical}.full{grid-column:1/-1}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.btn{border:2px solid #111827;background:#fff;color:#111827;border-radius:10px;padding:11px 16px;font-weight:900;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.btn.primary{background:#111827;color:#fff}.btn.ai{background:#0f766e;color:#fff;border-color:#0f766e}.btn:disabled{opacity:.6;cursor:wait}.status{white-space:pre-wrap;margin-top:12px;font-weight:800;line-height:1.8}.score{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.metric{padding:15px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}.metric b{display:block;font-size:24px;margin-bottom:4px}.checks{display:grid;gap:8px}.check{padding:10px;border-radius:10px;background:#f8fafc;border:1px solid #e2e8f0}.good{color:#15803d}.bad{color:#b91c1c}.warn{color:#92400e}.tip{padding:10px 12px;border-right:4px solid #0f766e;background:#f0fdfa;border-radius:8px;margin:8px 0;line-height:1.7}@media(max-width:720px){.fields,.score{grid-template-columns:1fr}.full{grid-column:auto}.panel{padding:16px}.shell{padding:12px}}
 /* Hide the platform attribution badge only on this SEO admin page. */
 body a[href*="hatchable.com/?utm_source=badge"],body a[href*="utm_content=together-network"],a[href*="hatchable.com"][href*="utm_medium=app"]{display:none!important;visibility:hidden!important;pointer-events:none!important}
+/* SEO page theme correction: follow the shared dark/light mode and keep every label readable. */
+body[data-theme="dark"]{background:#07111f!important;color:#f5f7fb!important}
+body[data-theme="dark"] .panel{background:#0d1b2e!important;color:#f5f7fb!important;border-color:#203650!important;box-shadow:0 8px 24px #0005!important}
+body[data-theme="dark"] .panel h1,body[data-theme="dark"] .panel h2,body[data-theme="dark"] .panel label,body[data-theme="dark"] .panel p,body[data-theme="dark"] .panel .field,body[data-theme="dark"] .panel .metric,body[data-theme="dark"] .panel .check{color:#f5f7fb!important}
+body[data-theme="dark"] .panel .hint{color:#a9bad0!important}
+body[data-theme="dark"] .panel .metric,body[data-theme="dark"] .panel .check{background:#12243a!important;border-color:#29415e!important}
+body[data-theme="dark"] .panel .field input,body[data-theme="dark"] .panel .field textarea,body[data-theme="dark"] .panel .field select{background:#071426!important;color:#f5f7fb!important;border-color:#45617e!important}
+body[data-theme="dark"] .panel input::placeholder,body[data-theme="dark"] .panel textarea::placeholder{color:#9db0c8!important;opacity:1}
+body[data-theme="dark"] .panel .btn{background:#12243a!important;color:#f5f7fb!important;border-color:#49617d!important}
+body[data-theme="dark"] .panel .btn.primary{background:#42d6a4!important;color:#06121b!important;border-color:#42d6a4!important}
+body[data-theme="dark"] .panel .btn.ai{background:#0f766e!important;color:#fff!important;border-color:#0f766e!important}
+body[data-theme="dark"] .panel .tip{background:#10332f!important;color:#d5fff2!important;border-color:#42d6a4!important}
+body[data-theme="dark"] .panel .good{color:#4ade80!important}body[data-theme="dark"] .panel .bad{color:#fca5a5!important}body[data-theme="dark"] .panel .warn{color:#fcd34d!important}
+body[data-theme="light"]{background:#faf8f3!important;color:#33251c!important}
+body[data-theme="light"] .panel{background:#fffdf9!important;color:#33251c!important;border-color:#e0d2c2!important;box-shadow:0 5px 20px #432c1c12!important}
+body[data-theme="light"] .panel h1,body[data-theme="light"] .panel h2,body[data-theme="light"] .panel label,body[data-theme="light"] .panel p,body[data-theme="light"] .panel .field,body[data-theme="light"] .panel .metric,body[data-theme="light"] .panel .check{color:#33251c!important}
+body[data-theme="light"] .panel .hint{color:#765f4c!important}
+body[data-theme="light"] .panel .metric,body[data-theme="light"] .panel .check{background:#f5eee5!important;border-color:#e0d2c2!important}
+body[data-theme="light"] .panel .field input,body[data-theme="light"] .panel .field textarea,body[data-theme="light"] .panel .field select{background:#fff!important;color:#33251c!important;border-color:#b99a7c!important}
+body[data-theme="light"] .panel input::placeholder,body[data-theme="light"] .panel textarea::placeholder{color:#796654!important;opacity:1}
+body[data-theme="light"] .panel .btn{background:#e8d8c6!important;color:#432c1c!important;border-color:#b99a7c!important}
+body[data-theme="light"] .panel .btn.primary{background:#6f452b!important;color:#fff!important;border-color:#56351f!important}
+body[data-theme="light"] .panel .btn.ai{background:#287443!important;color:#fff!important;border-color:#287443!important}
+body[data-theme="light"] .panel .tip{background:#f1e8dc!important;color:#493729!important;border-color:#8a5a36!important}
+body[data-theme="light"] .panel .good{color:#18733b!important}body[data-theme="light"] .panel .bad{color:#b42332!important}body[data-theme="light"] .panel .warn{color:#92520c!important}
 </style></head>
 <body><main class="shell">
 <header class="top"><div><h1 style="margin:0">🚀 مركز SEO والذكاء الاصطناعي</h1><div class="hint">تحسين بيانات البحث والمشاركة ومراجعة أساسيات الظهور للموقع العام.</div></div><a class="btn" href="/admin/">العودة للوحة الإدارة</a></header>
