@@ -139,12 +139,12 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
  const actor=req.user?.id||null;
  if(req.method==="GET"){
   const q=clean(req.query?.q),page=Math.max(1,Number(req.query?.page||1)),limit=20,offset=(page-1)*limit,showDeleted=String(req.query?.deleted||"")!=="";
-  const where="a.role='marketer'"+(showDeleted?"":" AND a.deleted_at IS NULL");
+  const where="a.role='marketer'"+(showDeleted?" AND a.deleted_at IS NOT NULL":" AND a.deleted_at IS NULL");
   const filter=q?" AND (a.display_name ILIKE $1 OR a.id ILIKE $1 OR a.phone ILIKE $1 OR a.referral_code ILIKE $1)":"";
   const base=q?["%"+q+"%"]:[];
   const count=await db.query("SELECT count(*)::int n FROM app_profiles a WHERE "+where+filter,base);
   const params=q?["%"+q+"%",limit,offset]:[limit,offset],lp=q?2:1,op=q?3:2;
-  const rows=await db.query(`SELECT a.id,a.display_name,a.phone,a.referral_code,a.status,a.deleted_at,a.login_blocked,a.activation_blocked,a.activation_started_at,a.admin_tier_override,a.created_at,
+  const rows=await db.query(`SELECT a.id,a.display_name,a.phone,a.referral_code,a.status,a.deleted_at,COALESCE(a.network_hidden,false) AS network_hidden,a.login_blocked,a.activation_blocked,a.activation_started_at,a.admin_tier_override,a.created_at,
   (SELECT naa.id FROM network_agent_applications naa WHERE naa.member_id=a.id AND naa.status='joined' ORDER BY naa.joined_at DESC NULLS LAST,naa.created_at DESC LIMIT 1) AS welcome_application_id,
   COALESCE((SELECT naa.welcome_email_status FROM network_agent_applications naa WHERE naa.member_id=a.id AND naa.status='joined' ORDER BY naa.joined_at DESC NULLS LAST,naa.created_at DESC LIMIT 1),'not_sent') AS welcome_email_status,
   get_admin_marketer_wallet_balance(a.id::text)::numeric AS wallet,COALESCE(s.qualified_sales,0)::int qualified_sales,COALESCE((SELECT count(*) FROM network_placements np WHERE np.owner_marketer_id=a.id),0)::int team_count FROM app_profiles a LEFT JOIN network_sales_qualification s ON s.marketer_id=a.id WHERE ${where}${filter} ORDER BY a.created_at ASC NULLS FIRST, a.id ASC LIMIT $${lp} OFFSET $${op}`,params);
@@ -152,7 +152,35 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
  }
  const b=body(req),action=clean(b.action),id=clean(b.marketer_id);
  if(!id)return res.status(400).json({error:"missing_marketer_id"});
- if(action==="delete"||action==="restore"){await db.query("UPDATE app_profiles SET deleted_at=$2,status=$3 WHERE id=$1",[id,action==="delete"?new Date():null,action==="delete"?"deleted":"active"]);await audit(actor,action,id);return res.json({ok:true});}
+ if(action==="delete"){
+  const r=await db.query("SELECT admin_delete_marketer_network_bv($1) AS result",[id]);
+  let outcome=r.rows[0]?.result||{};
+  if(typeof outcome==="string"){try{outcome=JSON.parse(outcome)}catch{outcome={ok:false,error:"network_delete_failed"}}}
+  if(!outcome.ok)return res.status(outcome.error==="marketer_not_found"?404:409).json(outcome);
+  const reportSync=await db.query("SELECT admin_refresh_network_bv_update_reports($1) AS updated_rows",[id]);
+  outcome.reconciled_report_rows=Number(reportSync.rows[0]?.updated_rows||0);
+  await audit(actor,"delete",id,outcome);
+  return res.json(outcome);
+ }
+ if(action==="restore"){
+  const restored=await db.query("SELECT admin_restore_marketer_network_tree($1) AS result",[id]);
+  let outcome=restored.rows[0]?.result||{};
+  if(typeof outcome==="string"){try{outcome=JSON.parse(outcome)}catch{outcome={ok:false,error:"network_restore_failed"}}}
+  if(!outcome.ok){
+   const code=outcome.error||"network_restore_failed";
+   return res.status(code==="marketer_not_found"?404:409).json(outcome);
+  }
+  await audit(actor,"restore",id,outcome);
+  return res.json(outcome);
+ }
+ if(action==="hide_network"||action==="show_network"){
+  const profile=await db.query("SELECT id FROM app_profiles WHERE id=$1 AND role='marketer' AND deleted_at IS NULL LIMIT 1",[id]);
+  if(!profile.rows.length)return res.status(404).json({error:"active_marketer_not_found"});
+  const hidden=action==="hide_network";
+  await db.query("UPDATE app_profiles SET network_hidden=$2 WHERE id=$1",[id,hidden]);
+  await audit(actor,action,id,{network_hidden:hidden});
+  return res.json({ok:true,network_hidden:hidden});
+ }
  if(["block","unblock"].includes(action)){await db.query("UPDATE app_profiles SET status=$2 WHERE id=$1",[id,action==="block"?"blocked":"active"]);await audit(actor,action,id);return res.json({ok:true});}
  if(["login_block","login_unblock"].includes(action)){await db.query("UPDATE app_profiles SET login_blocked=$2 WHERE id=$1",[id,action==="login_block"]);await audit(actor,action,id);return res.json({ok:true});}
  if(["activation_block","activation_unblock"].includes(action)){await db.query("UPDATE app_profiles SET activation_blocked=$2 WHERE id=$1",[id,action==="activation_block"]);await audit(actor,action,id);return res.json({ok:true});}
