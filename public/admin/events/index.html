@@ -83,7 +83,7 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
   if(!result.media?.key)throw new Error("لم يؤكد الخادم حفظ الملف «"+file.name+"».");
   return result.media;
  }
- form.addEventListener("submit",async e=>{
+ form.onsubmit=async e=>{
   e.preventDefault();const files=Array.from(input.files||[]);if(!files.length){status.textContent="اختر صورة أو فيديو أولًا.";return}
   save.disabled=true;progress.style.display="block";progress.value=0;
   const total=files.reduce((n,file)=>n+file.size,0),doneRef={value:0},uploaded=[];
@@ -100,6 +100,6 @@ $("#refresh").onclick=()=>load().catch(e=>$("#status").textContent=e.message);lo
   }catch(error){
    status.textContent="لم يكتمل الرفع: "+(error?.message||"خطأ غير معروف")+". لم يتم نشر الحدث. يمكنك إعادة المحاولة.";
   }finally{save.disabled=false;}
- });
+ };
 })();
 </script><script src="/hide-hatchable.js"></script><script src="/admin/guard.js"></script><script src="/theme-toggle.js?v=622"></script></body></html>
