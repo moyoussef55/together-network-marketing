@@ -6,6 +6,23 @@ export const methods = ["GET","POST","PUT","DELETE"];
 async function mediaUrl(key){const value=String(key||"");if(value.startsWith("namecheap-events/"))return "https://marketing.together-v-egp.com/event-media?key="+encodeURIComponent(value);return storage.url(value)}
 const allowed=new Map([["image/jpeg","jpg"],["image/png","png"],["image/webp","webp"],["image/gif","gif"],["video/mp4","mp4"],["video/webm","webm"],["video/quicktime","mov"]]);
 const uploadName=(value,ext)=>String(value||("event."+ext)).replace(/[\\/\\r\\n]/g,"_").slice(0,180);
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+async function storageWithRateLimitRetry(operation, label) {
+ let lastError;
+ for(let attempt=0;attempt<7;attempt++){
+  try{return await operation();}
+  catch(error){
+   lastError=error;
+   const message=String(error?.message||error||"");
+   const limited=/rate.?limit|too many requests|\\b429\\b/i.test(message);
+   if(!limited||attempt===6)throw error;
+   const pause=Math.min(8000,600*Math.pow(2,attempt))+Math.floor(Math.random()*250);
+   console.warn("event storage rate limit; retrying",label,"attempt",attempt+2,"in",pause,"ms");
+   await wait(pause);
+  }
+ }
+ throw lastError;
+}
 async function handleChunkedEventPost(req,res,b){
  const action=String(b.upload_action||"");
  if(!["upload_chunk","finalize_media","publish_uploaded"].includes(action))return null;
@@ -18,7 +35,10 @@ async function handleChunkedEventPost(req,res,b){
   if(!raw)return res.status(400).json({ok:false,error:"empty_chunk"});
   const bytes=Buffer.from(raw,"base64");
   if(!bytes.length||bytes.length>4*1024*1024)return res.status(413).json({ok:false,error:"invalid_chunk_size"});
-  await storage.put("network-events/.upload-"+uploadId+"-"+index+".part",bytes,"application/octet-stream");
+  await storageWithRateLimitRetry(
+   ()=>storage.put("network-events/.upload-"+uploadId+"-"+index+".part",bytes,"application/octet-stream"),
+   "put chunk "+index
+  );
   return res.json({ok:true,index,bytes:bytes.length});
  }
  if(action==="finalize_media"){
@@ -29,16 +49,24 @@ async function handleChunkedEventPost(req,res,b){
   const mime=String(b.content_type||"").split(";")[0].trim().toLowerCase(),ext=allowed.get(mime);
   if(!ext)return res.status(415).json({ok:false,error:"unsupported_media_type"});
   const keys=Array.from({length:chunks},(_,i)=>"network-events/.upload-"+uploadId+"-"+i+".part"),parts=[];
-  for(let start=0;start<keys.length;start+=4){
-   const batch=await Promise.all(keys.slice(start,start+4).map(async key=>{const part=await storage.get(key);return Buffer.from(part.buffer||[])}));
-   if(batch.some(part=>!part.length))return res.status(400).json({ok:false,error:"missing_upload_chunk"});
-   parts.push(...batch);
+  // storage/get is rate-limited to 50 calls per 10 seconds per project.
+  // Read sequentially with a 300ms gap, and back off/retry if other uploads
+  // are consuming the shared project quota at the same time.
+  for(let i=0;i<keys.length;i++){
+   if(i>0)await wait(300);
+   const part=await storageWithRateLimitRetry(()=>storage.get(keys[i]),"get chunk "+i);
+   const data=Buffer.from(part?.buffer||[]);
+   if(!data.length)return res.status(400).json({ok:false,error:"missing_upload_chunk",index:i});
+   parts.push(data);
   }
   const bytes=Buffer.concat(parts);
   if(!bytes.length)return res.status(400).json({ok:false,error:"empty_media"});
   const key="network-events/"+crypto.randomUUID()+"."+ext;
-  await storage.put(key,bytes,mime);
-  await Promise.all(keys.map(async partKey=>{try{await storage.del(partKey)}catch(_){}}));
+  await storageWithRateLimitRetry(()=>storage.put(key,bytes,mime),"put finalized media");
+  // Cleanup must never turn a successfully saved video into a failed upload.
+  // Best-effort deletion is retained; rate-limit failures only leave temporary
+  // chunks and do not affect publishing the final media object.
+  await Promise.all(keys.map(async partKey=>{try{await storage.del(partKey)}catch(cleanupError){console.warn("event upload chunk cleanup deferred",String(cleanupError?.message||cleanupError).slice(0,180));}}));
   return res.json({ok:true,media:{key,type:mime,name:uploadName(b.name,ext),bytes:bytes.length}});
  }
  const title=String(b.title||"").trim(),description=String(b.description||"").trim();
