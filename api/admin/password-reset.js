@@ -48,9 +48,34 @@ export default async function(req, res) {
       if (!q.rows.length) return res.status(400).json({ ok:false, error:"invalid_or_expired_token" });
       const salt = crypto.randomBytes(16).toString("hex");
       const hash = await passwordHash(password, salt);
-      await db.query("UPDATE network_admin_credentials SET password_hash=$1,password_salt=$2,updated_at=now() WHERE id=1", [hash,salt]);
-      await db.query("UPDATE network_admin_password_resets SET used_at=now() WHERE used_at IS NULL");
-      await db.query("DELETE FROM network_admin_sessions");
+      const changed = await db.query(
+        `WITH candidate AS (
+           SELECT id
+             FROM network_admin_password_resets
+            WHERE token_hash=$1 AND used_at IS NULL AND expires_at>now()
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+         ),
+         updated AS (
+           UPDATE network_admin_credentials
+              SET password_hash=$2,password_salt=$3,updated_at=now()
+            WHERE id=1 AND EXISTS (SELECT 1 FROM candidate)
+            RETURNING id
+         ),
+         consumed AS (
+           UPDATE network_admin_password_resets SET used_at=now()
+            WHERE used_at IS NULL AND EXISTS (SELECT 1 FROM updated)
+            RETURNING id
+         ),
+         revoked AS (
+           DELETE FROM network_admin_sessions
+            WHERE EXISTS (SELECT 1 FROM updated)
+            RETURNING id
+         )
+         SELECT id FROM updated`,
+        [digest(token),hash,salt]
+      );
+      if (!changed.rows.length) return res.status(400).json({ ok:false, error:"invalid_or_expired_token" });
       return res.json({ ok:true });
     }
     return res.status(400).json({ ok:false, error:"invalid_action" });

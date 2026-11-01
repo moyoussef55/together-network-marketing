@@ -1,13 +1,9 @@
 import { db } from "hatchable";
-import { requireNetworkUser } from "../../lib/network-auth.js";
+import { requireNetworkUser, hashNetworkPassword } from "../../lib/network-auth.js";
 export const access = "public";
 export const methods = ["GET","POST"];
 
-async function digest(value){
-  const bytes=new TextEncoder().encode(String(value));
-  const hash=await crypto.subtle.digest("SHA-256",bytes);
-  return Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,"0")).join("");
-}
+async function digest(value){ return hashNetworkPassword(value); }
 
 export default async function(req,res){
   const user=await requireNetworkUser(req,res);

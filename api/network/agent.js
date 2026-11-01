@@ -25,7 +25,7 @@ export default async function handler(req, res) {
          SELECT a.id, a.display_name, a.referral_code, a.phone, a.avatar_url
            FROM network n
            JOIN app_profiles a ON a.id=n.member_id
-          WHERE a.deleted_at IS NULL
+          WHERE a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false
             AND (
               a.id=$2
               OR a.referral_code=$3
@@ -99,10 +99,13 @@ export default async function handler(req, res) {
             LIMIT 1
          ) placement ON true
         WHERE a.id=$1 AND a.deleted_at IS NULL
+          AND (a.id=$2 OR COALESCE(a.network_hidden,false)=false)
         LIMIT 1`,
-      [targetId]
+      [targetId,uid]
     );
     if (!profile.rows.length) {
+      const hidden=await db.query("SELECT id FROM app_profiles WHERE id=$1 AND deleted_at IS NULL AND COALESCE(network_hidden,false)=true LIMIT 1",[targetId]);
+      if(hidden.rows.length)return res.status(404).json({error:"agent_not_found"});
       const source=await db.query("SELECT source_id,payload FROM legacy_import_source_records WHERE collection_name='agents' AND source_id=$1 LIMIT 1",[targetId]);
       if(!source.rows.length)return res.status(404).json({error:"agent_not_found"});
       const x=source.rows[0].payload||{};
@@ -133,7 +136,7 @@ export default async function handler(req, res) {
       const sp = await db.query(
         `SELECT id, display_name, referral_code
            FROM app_profiles
-          WHERE id=$1 AND deleted_at IS NULL
+          WHERE id=$1 AND deleted_at IS NULL AND COALESCE(network_hidden,false)=false
           LIMIT 1`,
         [profile.rows[0].sponsor_id]
       );
@@ -166,7 +169,7 @@ export default async function handler(req, res) {
          LEFT JOIN app_profiles o ON o.id=sp.parent_id
          LEFT JOIN mapped pm ON pm.target_id=sp.parent_id
         WHERE (o.id IS NOT NULL OR pm.source_id IS NOT NULL)
-          AND (o.deleted_at IS NULL OR o.id IS NULL)
+          AND (o.id IS NULL OR (o.deleted_at IS NULL AND COALESCE(o.network_hidden,false)=false))
        LIMIT 1`,
       [targetId]
     );
@@ -175,7 +178,7 @@ export default async function handler(req, res) {
       const oldUp = await db.query(
         `SELECT o.id,o.display_name,o.referral_code,o.avatar_url
            FROM network_placements p JOIN app_profiles o ON o.id=p.owner_marketer_id
-          WHERE p.member_id=$1 AND p.account_position IN (2,3) AND o.deleted_at IS NULL
+          WHERE p.member_id=$1 AND p.account_position IN (2,3) AND o.deleted_at IS NULL AND COALESCE(o.network_hidden,false)=false
           ORDER BY p.created_at DESC NULLS LAST LIMIT 1`,[targetId]);
       upline = oldUp.rows[0] || null;
     }
@@ -203,7 +206,7 @@ export default async function handler(req, res) {
            ) v(child_source,pos,side)
            LEFT JOIN mapped c ON c.source_id=v.child_source
            LEFT JOIN app_profiles a ON a.id=COALESCE(c.target_id,v.child_source)
-          WHERE m.target_id=$1 AND NULLIF(v.child_source,'') IS NOT NULL
+          WHERE m.target_id=$1 AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false)) AND NULLIF(v.child_source,'') IS NOT NULL
             AND v.child_source<>'000000000000000000000000'
        ), db_rows AS (
          SELECT p.account_position,p.side,p.member_id,p.parent_member_id,
@@ -211,6 +214,7 @@ export default async function handler(req, res) {
                 a.referral_code,a.avatar_url
            FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id
           WHERE p.owner_marketer_id=$1 AND p.account_position IN (2,3)
+            AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false))
        )
        -- Imported source slots take precedence; retain legacy rows only for slots absent from source.
        SELECT * FROM source_rows
@@ -251,10 +255,35 @@ export default async function handler(req, res) {
          UNION ALL
          SELECT p.member_id,p.created_at FROM network_placements p JOIN n ON p.owner_marketer_id=n.member_id WHERE p.account_position IN (2,3)
        ) SELECT n.member_id,COALESCE(a.display_name,a.referral_code,n.member_id::text) member_name,a.referral_code,a.avatar_url,n.created_at
-         FROM n LEFT JOIN app_profiles a ON a.id=n.member_id ORDER BY n.created_at NULLS LAST LIMIT 4`,[targetId]
+         FROM n LEFT JOIN app_profiles a ON a.id=n.member_id WHERE a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false) ORDER BY n.created_at NULLS LAST LIMIT 4`,[targetId]
     );
     const firstFour=[];
-    for(const x of descendants.rows){const rr=await db.query(`SELECT p.account_position,p.side,p.member_id,COALESCE(a.display_name,a.referral_code,p.member_id::text) member_name,a.referral_code,a.avatar_url FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id WHERE p.owner_marketer_id=$1 AND p.account_position IN (2,3) ORDER BY p.account_position,CASE WHEN p.side='left' THEN 0 ELSE 1 END`,[x.member_id]);firstFour.push({...x,authorizations:rr.rows});}
+    if (descendants.rows.length) {
+      const firstFourIds=descendants.rows.map(x=>String(x.member_id));
+      const firstFourPlacements=await db.query(
+        `SELECT p.owner_marketer_id AS owner_id,p.account_position,p.side,p.member_id,
+                COALESCE(a.display_name,a.referral_code,p.member_id::text) member_name,
+                a.referral_code,a.avatar_url
+           FROM network_placements p
+           LEFT JOIN app_profiles a ON a.id=p.member_id
+          WHERE p.owner_marketer_id::text=ANY($1::text[])
+            AND p.account_position IN (2,3)
+            AND (a.id IS NULL OR (a.deleted_at IS NULL AND COALESCE(a.network_hidden,false)=false))
+          ORDER BY p.owner_marketer_id,p.account_position,
+                   CASE WHEN p.side='left' THEN 0 ELSE 1 END`,
+        [firstFourIds]
+      );
+      const placementsByOwner={};
+      for (const placement of firstFourPlacements.rows) {
+        const key=String(placement.owner_id);
+        if (!placementsByOwner[key]) placementsByOwner[key]=[];
+        const {owner_id,...visiblePlacement}=placement;
+        placementsByOwner[key].push(visiblePlacement);
+      }
+      for (const x of descendants.rows) {
+        firstFour.push({...x,authorizations:placementsByOwner[String(x.member_id)]||[]});
+      }
+    }
     const legacyBvQuery=await db.query(`
       SELECT s.payload
         FROM legacy_import_source_records s
@@ -274,17 +303,20 @@ export default async function handler(req, res) {
       SELECT pos.account_position,
              COALESCE(b.total_right,0)::bigint AS total_right,
              COALESCE(b.total_left,0)::bigint AS total_left,
-             COALESCE((SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_right,0))::bigint
+             (b.member_id IS NOT NULL) AS has_live_bv_data,
+             COALESCE(b.carry_right,(SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),0)::bigint
                + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                     WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='right'
-                      AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                          WHERE s.member_id=$1 AND s.account_position=pos.account_position),
+                      AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                          WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                          ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                         ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_right,
-             COALESCE((SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_left,0))::bigint
+             COALESCE(b.carry_left,(SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),0)::bigint
                + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                     WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='left'
-                      AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                          WHERE s.member_id=$1 AND s.account_position=pos.account_position),
+                      AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                          WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                          ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                         ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_left
         FROM (VALUES (1),(2),(3)) AS pos(account_position)
         LEFT JOIN network_bv_balances b ON b.member_id=$1 AND b.account_position=pos.account_position
@@ -294,11 +326,12 @@ export default async function handler(req, res) {
     for(const row of liveBvQuery.rows){
       const pos=Number(row.account_position);
       const legacyPos={1:{right:Number(lp.rightPv||0),left:Number(lp.leftPv||0),carry_right:Number(lp.carryRight||0),carry_left:Number(lp.carryLeft||0)},2:{right:Number(lp.rightPv2||0),left:Number(lp.leftPv2||0),carry_right:Number(lp.carryRight2||0),carry_left:Number(lp.carryLeft2||0)},3:{right:Number(lp.rightPv3||0),left:Number(lp.leftPv3||0),carry_right:Number(lp.carryRight3||0),carry_left:Number(lp.carryLeft3||0)}}[pos];
+      const hasLiveBvData=row.has_live_bv_data===true;
       legacyBvByPosition[pos]={
-        right:Number(row.total_right||0)||legacyPos.right,
-        left:Number(row.total_left||0)||legacyPos.left,
-        carry_right:Number(row.carry_right||0)||legacyPos.carry_right,
-        carry_left:Number(row.carry_left||0)||legacyPos.carry_left
+        right:hasLiveBvData?Number(row.total_right||0):legacyPos.right,
+        left:hasLiveBvData?Number(row.total_left||0):legacyPos.left,
+        carry_right:hasLiveBvData?Number(row.carry_right||0):legacyPos.carry_right,
+        carry_left:hasLiveBvData?Number(row.carry_left||0):legacyPos.carry_left
       };
     }
     const qualifiedSales=Number(sales.rows[0]?.qualified_sales||0);const bvResult=await db.query("SELECT COALESCE(SUM(oi.quantity*oi.bv),0)::int AS purchase_bv FROM orders o JOIN order_items oi ON oi.order_id=o.id WHERE o.marketer_id=$1 AND o.status=ANY($2::text[])",[targetId,["paid","processing","shipped","delivered","completed"]]);const purchaseBv=Number(bvResult.rows[0]?.purchase_bv||0);const tier=Math.max(purchaseBv>=3000?3:purchaseBv>=2000?2:purchaseBv>=1000?1:0,Number(profile.rows[0]?.admin_tier_override||0));return res.json({target:{...profile.rows[0],qualified_sales:qualifiedSales,tier,sponsor,upline,bv_by_position:legacyBvByPosition},placements:rows.rows,first_four:firstFour,can_navigate_upline:targetId!==uid&&Boolean(upline?.id)});

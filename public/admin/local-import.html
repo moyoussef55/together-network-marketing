@@ -20,10 +20,15 @@ input,button{font:inherit;margin:10px 0;max-width:100%;box-sizing:border-box}inp
 <label for="file">اختر ملف التصدير من جهازك:</label><br>
 <input id="file" type="file" accept=".json,application/json"><br>
 <button id="send">إرسال إلى مساحة المراجعة</button>
+<button id="preview" type="button" style="background:#72512b">مقارنة الأرصدة والـBV والشبكة قبل الدمج</button>
+<button id="apply" type="button" style="background:#8b1e32;display:none">تنفيذ دمج البيانات المعتمدة</button>
+<a id="adminLoginLink" href="/tn-admin-gateway-7f3c9b2d/?next=%2Fadmin%2Flocal-import.html" style="display:none;padding:10px 14px;margin:10px 0;background:#7f1d1d;color:#fff;border-radius:8px;text-decoration:none;font-weight:800">تسجيل الدخول للإدارة</a>
 <div id="status" role="status">بانتظار اختيار الملف وإدخال الرمز.</div>
 <script>
-const fileInput=document.getElementById('file'),tokenInput=document.getElementById('token'),send=document.getElementById('send'),statusBox=document.getElementById('status');
+const fileInput=document.getElementById('file'),tokenInput=document.getElementById('token'),send=document.getElementById('send'),previewBtn=document.getElementById('preview'),applyBtn=document.getElementById('apply'),statusBox=document.getElementById('status'),adminLoginLink=document.getElementById('adminLoginLink');
 const report=s=>statusBox.textContent=s;
+async function checkAdminSession(){try{const r=await fetch('/api/admin/login-status',{credentials:'same-origin',cache:'no-store'});const d=await r.json();const ok=!!d.authenticated;adminLoginLink.style.display=ok?'none':'inline-block';if(!ok)report('جلسة الإدارة غير فعالة أو انتهت صلاحيتها. سجّل الدخول من الزر أدناه، ثم افتح قسم استيراد البيانات مرة أخرى.');return ok}catch(e){adminLoginLink.style.display='inline-block';report('تعذر التحقق من جلسة الإدارة. سجّل الدخول ثم أعد المحاولة.');return false}}
+checkAdminSession();
 async function post(data,token){
  const r=await fetch('/api/admin/local-import',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,token})});
  const j=await r.json().catch(()=>({}));
@@ -54,6 +59,37 @@ send.addEventListener('click',async()=>{
    tokenInput.value='';
  }catch(e){report('لم يكتمل النقل: '+(e?.message||e)+'\nلم يتم تنفيذ استيراد إلى بيانات النظام.');}
  finally{send.disabled=false;}
+});
+previewBtn.addEventListener('click',async()=>{
+  previewBtn.disabled=true;
+  try{
+    report('جاري فحص الملف المرفوع داخل قاعدة مراجعة Hatchable...');
+    const r=await fetch('/api/admin/local-import-reconcile',{method:'GET',credentials:'same-origin',cache:'no-store'});
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok){if(data.error==='admin_login_required'){adminLoginLink.style.display='inline-block';throw new Error('جلسة الإدارة غير فعالة أو انتهت صلاحيتها. سجّل الدخول من الرابط الظاهر ثم افتح قسم الاستيراد مرة أخرى.');}throw new Error(data.error||('HTTP '+r.status));}
+    const deepR=await fetch('/api/admin/local-import-deep-audit',{method:'GET',credentials:'same-origin',cache:'no-store'});
+    const deepData=await deepR.json().catch(()=>({}));
+    if(!deepR.ok)throw new Error([deepData.error,deepData.stage,deepData.message].filter(Boolean).join(' | ')||('deep audit HTTP '+deepR.status));
+    applyBtn.style.display='inline-block';
+    report('اكتملت المقارنة التفصيلية (قراءة فقط):\n\n'+JSON.stringify({reconciliation:data,deep_audit:deepData},null,2));
+  }catch(e){
+    report('تعذر الفحص: '+(e?.message||e)+'\nلم يتم إجراء أي تعديل على بيانات المسوقين أو الأرصدة أو الشبكة.');
+  }finally{
+    previewBtn.disabled=false;
+  }
+});
+applyBtn.addEventListener('click',async()=>{
+ if(!window.confirm('تأكيد تنفيذ دمج بيانات المصدر وتحديث أرصدة المسوقين والـBV؟ لن يتم إنشاء شيكات رجعية.'))return;
+ applyBtn.disabled=true;
+ try{
+  report('جارٍ تنفيذ الدمج...');
+  const r=await fetch('/api/admin/local-import-apply',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:'APPLY-LEGACY-20261031'})});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error([d.error,d.stage,d.message].filter(Boolean).join(' | ')||('HTTP '+r.status));
+  report('اكتمل الدمج:\n\n'+JSON.stringify(d,null,2));
+  applyBtn.style.display='none';
+ }catch(e){report('تعذر إكمال الدمج: '+(e?.message||e)+'\nأرسل الخطأ كاملًا لإكمال المرحلة المتوقفة.');}
+ finally{applyBtn.disabled=false;}
 });
 </script>
 </main><script src="/theme-toggle.js?v=600"></script></body></html>

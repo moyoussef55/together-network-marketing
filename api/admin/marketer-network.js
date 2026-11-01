@@ -66,17 +66,20 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
     SELECT pos.account_position,
            COALESCE(b.total_right,0)::bigint AS total_right,
            COALESCE(b.total_left,0)::bigint AS total_left,
-           COALESCE((SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_right,0))::bigint
+           (b.member_id IS NOT NULL) AS has_live_bv_data,
+           COALESCE((SELECT s.carry_right FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),COALESCE(b.carry_right,0))::bigint
              + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                   WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='right'
-                    AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                        WHERE s.member_id=$1 AND s.account_position=pos.account_position),
+                    AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                        WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                        ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                       ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_right,
-           COALESCE((SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.settled_at DESC LIMIT 1),COALESCE(b.carry_left,0))::bigint
+           COALESCE((SELECT s.carry_left FROM network_bv_settlements s WHERE s.member_id=$1 AND s.account_position=pos.account_position ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),COALESCE(b.carry_left,0))::bigint
              + COALESCE((SELECT SUM(l.bv) FROM network_bv_ledger l
                   WHERE l.upline_member_id=$1 AND l.account_position=pos.account_position AND l.side='left'
-                    AND l.sale_at>COALESCE((SELECT MAX(s.settled_at) FROM network_bv_settlements s
-                        WHERE s.member_id=$1 AND s.account_position=pos.account_position),
+                    AND l.sale_at>=COALESCE((SELECT (s.week_end::timestamp AT TIME ZONE 'Africa/Cairo') FROM network_bv_settlements s
+                        WHERE s.member_id=$1 AND s.account_position=pos.account_position
+                        ORDER BY s.week_end DESC,s.week_start DESC,s.id DESC LIMIT 1),
                       ((date_trunc('week',timezone('Africa/Cairo',now()))::date-2)::timestamp AT TIME ZONE 'Africa/Cairo'))),0)::bigint AS carry_left
       FROM (VALUES (1),(2),(3)) AS pos(account_position)
       LEFT JOIN network_bv_balances b ON b.member_id=$1 AND b.account_position=pos.account_position
@@ -90,11 +93,12 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
       2:{right:Number(lp.rightPv2||0),left:Number(lp.leftPv2||0),carry_right:Number(lp.carryRight2||0),carry_left:Number(lp.carryLeft2||0)},
       3:{right:Number(lp.rightPv3||0),left:Number(lp.leftPv3||0),carry_right:Number(lp.carryRight3||0),carry_left:Number(lp.carryLeft3||0)}
     }[pos];
+    const hasLiveBvData=row.has_live_bv_data===true;
     legacyBvByPosition[pos]={
-      right:Number(row.total_right||0)||legacyPos.right,
-      left:Number(row.total_left||0)||legacyPos.left,
-      carry_right:Number(row.carry_right||0)||legacyPos.carry_right,
-      carry_left:Number(row.carry_left||0)||legacyPos.carry_left
+      right:hasLiveBvData?Number(row.total_right||0):legacyPos.right,
+      left:hasLiveBvData?Number(row.total_left||0):legacyPos.left,
+      carry_right:hasLiveBvData?Number(row.carry_right||0):legacyPos.carry_right,
+      carry_left:hasLiveBvData?Number(row.carry_left||0):legacyPos.carry_left
     };
   }
   target.rows[0].bv_by_position=legacyBvByPosition;
@@ -160,7 +164,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
          ) v(child_source,pos,side)
          LEFT JOIN mapped c ON c.source_id=v.child_source
          LEFT JOIN app_profiles a ON a.id=COALESCE(c.target_id,v.child_source)
-        WHERE m.target_id=$1 AND NULLIF(v.child_source,'') IS NOT NULL
+        WHERE m.target_id=$1 AND (a.id IS NULL OR a.deleted_at IS NULL) AND NULLIF(v.child_source,'') IS NOT NULL
           AND v.child_source<>'000000000000000000000000'
      ), db_rows AS (
        SELECT p.account_position,p.side,p.member_id,p.parent_member_id,
@@ -168,6 +172,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
               a.referral_code,a.avatar_url,a.status,a.deleted_at
          FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id
         WHERE p.owner_marketer_id=$1 AND p.account_position IN (2,3)
+          AND (a.id IS NULL OR a.deleted_at IS NULL)
      )
      SELECT * FROM source_rows
      UNION ALL
@@ -190,6 +195,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
          FROM network_placements p
          LEFT JOIN app_profiles a ON a.id=p.member_id
         WHERE p.owner_marketer_id = ANY($1::text[])
+          AND (a.id IS NULL OR a.deleted_at IS NULL)
         ORDER BY p.owner_marketer_id,p.account_position,
                  CASE WHEN p.side='left' THEN 0 ELSE 1 END`,
       [teamIds]

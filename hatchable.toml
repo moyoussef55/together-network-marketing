@@ -65,3 +65,65 @@ description = "Server-side Google Gemini API key reserved for the SEO metadata b
 [[cron]]
 path = "/api/jobs/network-bv-weekly"
 schedule = "0 * * * *"
+
+# Archived migration and recovery snapshots contain sensitive financial/member data.
+# Restrict them to platform collaborators; application routes should use live tables.
+[db.tables.marketer_password_resets_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.network_auth_sessions_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.ops_backup_on1000555_fund_events_20261022]
+read = "member"
+write = "member"
+
+[db.tables.ops_backup_on1000555_funds_20261022]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_wallet_transactions]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_wallets]
+read = "member"
+write = "member"
+
+[db.tables.pre_local_migration_20261012_withdrawal_requests]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_backup_20261014_pre_maxout_flashout]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_backup_20261024_pre_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallet_transactions_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261014_pre_maxout_flashout]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261024_pre_midnight_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallets_backup_20261024_pre_rollback]
+read = "member"
+write = "member"
+
+[db.tables.wallets_snapshot_20261009_1037]
+read = "member"
+write = "member"
+
+[db.tables.withdrawal_requests_snapshot_20261009_1037]
+read = "member"
+write = "member"

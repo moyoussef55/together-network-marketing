@@ -1,8 +1,9 @@
 import { db } from "hatchable";
 import { requireAdminSession } from "../../lib/admin-auth.js";
+import { hashNetworkPassword } from "../../lib/network-auth.js";
 export const access = "public";
 export const methods=["POST"];
-async function digest(v){const b=new TextEncoder().encode(String(v));const h=await crypto.subtle.digest("SHA-256",b);return Array.from(new Uint8Array(h)).map(x=>x.toString(16).padStart(2,"0")).join("")}
+async function digest(v){return hashNetworkPassword(v)}
 export default async function(req,res){if(!(await requireAdminSession(req,res)))return;
  const b=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{}),owner=String(b.owner_id||"").trim(),pos=Number(b.account_position),slot=Number(b.slot_no);
  if(!owner||![2,3].includes(pos)||![1,2].includes(slot))return res.status(400).json({error:"invalid_target"});

@@ -9,6 +9,7 @@ export default async function(req,res){if(!(await requireAdminSession(req,res)))
   const placements=await db.query(`SELECT p.owner_marketer_id,p.account_position,p.side,p.member_id,p.parent_member_id,
     COALESCE(a.display_name,a.referral_code,p.member_id::text) member_name,a.referral_code,a.avatar_url,a.status
     FROM network_placements p LEFT JOIN app_profiles a ON a.id=p.member_id
+    WHERE a.id IS NULL OR a.deleted_at IS NULL
     ORDER BY p.created_at NULLS LAST`);
   const byOwner={};
   for(const p of placements.rows)(byOwner[p.owner_marketer_id]??=[]).push(p);
