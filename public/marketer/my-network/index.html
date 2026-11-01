@@ -236,7 +236,7 @@ async function openBv(memberId,position,code,name,profileData){
  c.innerHTML='<div class="tn-bv-empty">جاري تحميل الـBV...</div>';
  m.classList.add("open");m.setAttribute("aria-hidden","false");
  try{
-  const r=await fetch("/api/network/bv?member_id="+encodeURIComponent(memberId)+"&account_position="+position,{cache:"no-store",credentials:"same-origin"});
+  const r=await fetch("/api/network/bv?member_id="+encodeURIComponent(memberId)+"&account_position="+position+"&_="+Date.now(),{cache:"no-store",credentials:"same-origin",headers:{"Cache-Control":"no-cache"}});
   const d=await r.json();if(!r.ok)throw Error(d.error||"تعذر تحميل بيانات BV");
   const b=d.balance||{};
   const rows=(Array.isArray(d.checks)?d.checks:[]).sort((a,b)=>String(b.week_end||"").localeCompare(String(a.week_end||""))||String(b.settled_at||"").localeCompare(String(a.settled_at||""))).slice(0,2);
@@ -300,7 +300,7 @@ async function load(){
  try{
   const selected=new URLSearchParams(location.search).get("member_id");
   // اجلب بيانات الشبكة مرة واحدة فقط؛ /api/network/agent يعيد target وبيانات العضو عند الحاجة.
-  const rr=await fetch("/api/network/agent"+(selected?"?member_id="+encodeURIComponent(selected):""),{cache:"no-store",credentials:"same-origin"});
+  const rr=await fetch("/api/network/agent"+(selected?"?member_id="+encodeURIComponent(selected):""),{cache:"no-store",credentials:"same-origin",headers:{"Cache-Control":"no-cache"}});
   if(rr.status===401){location.href="/login";return}
   const d=await rr.json();if(!rr.ok)throw Error(d.error||"تعذر تحميل الشبكة");
   const t=d.target||d.marketer||{},tier=Number(t.tier||0);
@@ -357,7 +357,7 @@ async function runNetworkSearch(){
  searchAbort=new AbortController();
  searchStatus.textContent="…";
  try{
-  const r=await fetch("/api/network/agent?search="+encodeURIComponent(q),{cache:"no-store",credentials:"same-origin",signal:searchAbort.signal});
+  const r=await fetch("/api/network/agent?search="+encodeURIComponent(q),{cache:"default",credentials:"same-origin",signal:searchAbort.signal});
   const d=await r.json();if(!r.ok)throw Error(d.error||"تعذر البحث");
   const rows=Array.isArray(d.results)?d.results:[];
   searchCache.set(q.toLowerCase(),rows);
@@ -390,5 +390,5 @@ $("#tn-bv-modal").onclick=e=>{if(e.target.id==="tn-bv-modal")closeBv()};
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeBv()});
 load();
 </script>
-<script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=620"></script><script src="/theme-toggle.js?v=620"></script></body>
+<script src="/hide-hatchable.js"></script><script src="/marketer-sidebar.js?v=565"></script><script src="/theme-toggle.js?v=600"></script></body>
 </html>
