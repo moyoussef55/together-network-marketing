@@ -48,167 +48,192 @@ const eventDiskUpload = multer({
   limits: { files: 12, fields: 200, fieldSize: 25 * 1024 * 1024 }
 });
 
-// Authenticate before accepting the request body, then stream the video to disk
-// and call the local event handler (which shares the production database).
+// Namecheap is a secure transport bridge. Hatchable remains responsible
+// for admin authentication, event records, and media storage.
 app.post("/api/admin/events", async (req, res) => {
-  try {
-    const authModule = await import(pathToFileURL(path.join(__dirname, "lib/admin-auth.js")).href);
-    if (!(await authModule.requireAdminSession(req, res))) return;
-  } catch (error) {
-    console.error("Event upload auth check failed:", error?.code || error?.name || "Error");
-    if (!res.headersSent) return res.status(500).json({ ok: false, error: "admin_auth_unavailable" });
-    return;
-  }
+  const target = new URL("/api/admin/events", HATCHABLE_API_ORIGIN);
 
-  if (req.get("x-event-upload-mode") === "raw-chunked" && req.is("application/octet-stream")) {
-    return express.raw({ type: "application/octet-stream", limit: EVENT_UPLOAD_CHUNK_BYTES })(req, res, async parseError => {
-      if (parseError) return res.status(parseError.status === 413 ? 413 : 400).json({ ok: false, error: parseError.status === 413 ? "invalid_chunk_size" : "invalid_upload_request" });
+  const forwardJson = async payload => {
+    const headers = new Headers({
+      accept: "application/json",
+      "content-type": "application/json"
+    });
+
+    for (const name of [
+      "accept-language",
+      "authorization",
+      "cookie",
+      "user-agent",
+      "x-csrf-token",
+      "x-xsrf-token",
+      "x-requested-with"
+    ]) {
+      const value = req.headers[name];
+      if (typeof value === "string" && value) {
+        headers.set(name, value);
+      }
+    }
+
+    headers.set("origin", HATCHABLE_API_ORIGIN);
+    headers.set("referer", target.href);
+
+    const configuredTimeout = Number(
+      process.env.HATCHABLE_API_TIMEOUT_MS || 120000
+    );
+    const timeout = Number.isFinite(configuredTimeout)
+      ? Math.max(1000, Math.min(300000, configuredTimeout))
+      : 120000;
+
+    const upstream = await fetch(target, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      redirect: "manual",
+      signal: AbortSignal.timeout(timeout)
+    });
+
+    res.status(upstream.status);
+
+    for (const name of [
+      "content-type",
+      "cache-control",
+      "retry-after",
+      "www-authenticate"
+    ]) {
+      const value = upstream.headers.get(name);
+      if (value) res.setHeader(name, value);
+    }
+
+    return res.end(Buffer.from(await upstream.arrayBuffer()));
+  };
+
+  const bridgeFailure = error => {
+    console.error(
+      "Hatchable event API bridge failed:",
+      error?.cause?.code || error?.name || "Error"
+    );
+
+    if (!res.headersSent) {
+      return res.status(502).json({
+        ok: false,
+        error: "hatchable_api_unavailable"
+      });
+    }
+
+    return res.end();
+  };
+
+  if (
+    req.get("x-event-upload-mode") === "raw-chunked" &&
+    req.is("application/octet-stream")
+  ) {
+    return express.raw({
+      type: "application/octet-stream",
+      limit: EVENT_UPLOAD_CHUNK_BYTES
+    })(req, res, async parseError => {
+      if (parseError) {
+        return res.status(
+          parseError.status === 413 ? 413 : 400
+        ).json({
+          ok: false,
+          error: parseError.status === 413
+            ? "invalid_chunk_size"
+            : "invalid_upload_request"
+        });
+      }
+
       const uploadId = String(req.get("x-upload-id") || "");
       const index = Number(req.get("x-upload-index"));
-      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-      const validUploadId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(uploadId);
-      if (!validUploadId) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
-      if (!Number.isSafeInteger(index) || index < 0 || index > 10000) return res.status(400).json({ ok: false, error: "invalid_chunk_index" });
-      if (!bytes.length || bytes.length > EVENT_UPLOAD_CHUNK_BYTES) return res.status(413).json({ ok: false, error: "invalid_chunk_size" });
-      const chunkDir = path.join(EVENT_UPLOAD_TEMP_DIR, ".chunks");
-      const chunkPath = path.resolve(chunkDir, uploadId + "-" + index + ".part");
-      if (!chunkPath.startsWith(chunkDir + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
-      const tempPath = chunkPath + "." + crypto.randomUUID() + ".tmp";
+      const bytes = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.alloc(0);
+
+      const validUploadId =
+        /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
+
+      if (!validUploadId.test(uploadId)) {
+        return res.status(400).json({
+          ok: false,
+          error: "invalid_upload_id"
+        });
+      }
+
+      if (
+        !Number.isSafeInteger(index) ||
+        index < 0 ||
+        index > 10000
+      ) {
+        return res.status(400).json({
+          ok: false,
+          error: "invalid_chunk_index"
+        });
+      }
+
+      if (
+        !bytes.length ||
+        bytes.length > EVENT_UPLOAD_CHUNK_BYTES
+      ) {
+        return res.status(413).json({
+          ok: false,
+          error: "invalid_chunk_size"
+        });
+      }
+
       try {
-        await fs.mkdir(chunkDir, { recursive: true });
-        await fs.writeFile(tempPath, bytes, { flag: "wx" });
-        await fs.rename(tempPath, chunkPath);
-        return res.json({ ok: true, index, bytes: bytes.length });
+        return await forwardJson({
+          upload_action: "upload_chunk",
+          upload_id: uploadId,
+          index,
+          data_base64: bytes.toString("base64")
+        });
       } catch (error) {
-        await fs.rm(tempPath, { force: true }).catch(() => {});
-        console.error("Raw event chunk write failed:", error?.code || error?.name || "Error");
-        return res.status(500).json({ ok: false, error: "chunk_write_failed" });
+        return bridgeFailure(error);
       }
     });
   }
 
-  if (req.get("x-event-upload-mode") === "chunked" && req.is("application/json")) {
-    return express.json({ limit: "5mb" })(req, res, async parseError => {
-      if (parseError) return res.status(parseError.status === 413 ? 413 : 400).json({ ok: false, error: "invalid_upload_request" });
-      const body = req.body || {};
-      const action = String(body.upload_action || "");
-      const validUploadId = value => /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(String(value || ""));
-      const chunkDir = path.join(EVENT_UPLOAD_TEMP_DIR, ".chunks");
-      try {
-        await fs.mkdir(chunkDir, { recursive: true });
-        if (action === "upload_chunk") {
-          const uploadId = String(body.upload_id || "");
-          const index = Number(body.index);
-          if (!validUploadId(uploadId)) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
-          if (!Number.isSafeInteger(index) || index < 0 || index > 10000) return res.status(400).json({ ok: false, error: "invalid_chunk_index" });
-          const raw = String(body.data_base64 || "").replace(/^data:[^,]+,/, "");
-          const bytes = Buffer.from(raw, "base64");
-          if (!bytes.length || bytes.length > 2 * 1024 * 1024) return res.status(413).json({ ok: false, error: "invalid_chunk_size" });
-          const chunkPath = path.resolve(chunkDir, uploadId + "-" + index + ".part");
-          if (!chunkPath.startsWith(chunkDir + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
-          await fs.writeFile(chunkPath, bytes);
-          return res.json({ ok: true, index, bytes: bytes.length });
+  if (
+    req.get("x-event-upload-mode") === "chunked" &&
+    req.is("application/json")
+  ) {
+    return express.json({ limit: "5mb" })(
+      req,
+      res,
+      async parseError => {
+        if (parseError) {
+          return res.status(
+            parseError.status === 413 ? 413 : 400
+          ).json({
+            ok: false,
+            error: "invalid_upload_request"
+          });
         }
-        if (action === "finalize_media") {
-          const uploadId = String(body.upload_id || "");
-          const chunks = Number(body.chunks);
-          const expectedBytes = Number(body.bytes);
-          const requestedChunkBytes = Number(body.chunk_bytes || 0);
-          const allowedChunkSizes = [EVENT_UPLOAD_CHUNK_BYTES, 2 * 1024 * 1024];
-          const chunkBytes = allowedChunkSizes.includes(requestedChunkBytes)
-            ? requestedChunkBytes
-            : allowedChunkSizes.find(size => Number.isSafeInteger(expectedBytes) && expectedBytes > 0 && Math.ceil(expectedBytes / size) === chunks);
-          const mime = String(body.content_type || "").split(";")[0].trim().toLowerCase();
-          const ext = allowed.get(mime);
-          if (!validUploadId(uploadId)) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
-          if (!Number.isSafeInteger(chunks) || chunks < 1 || chunks > 10001 || !Number.isSafeInteger(expectedBytes) || expectedBytes < 1 || !chunkBytes || Math.ceil(expectedBytes / chunkBytes) !== chunks) return res.status(400).json({ ok: false, error: "invalid_chunk_count" });
-          if (!ext) return res.status(415).json({ ok: false, error: "unsupported_media_type" });
-          const partPaths = Array.from({ length: chunks }, (_, i) => path.resolve(chunkDir, uploadId + "-" + i + ".part"));
-          const key = "namecheap-events/" + crypto.randomUUID() + "." + ext;
-          const finalPath = path.resolve(STORAGE_ROOT, key);
-          if (!finalPath.startsWith(STORAGE_ROOT + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
-          await fs.mkdir(path.dirname(finalPath), { recursive: true });
-          let complete = false, totalBytes = 0;
-          try {
-            const out = await fs.open(finalPath, "w");
-            try {
-              for (let i = 0; i < partPaths.length; i++) {
-                let part;
-                try { part = await fs.readFile(partPaths[i]); }
-                catch { return res.status(400).json({ ok: false, error: "missing_upload_chunk" }); }
-                const expectedPartBytes = i < partPaths.length - 1 ? chunkBytes : expectedBytes - (chunkBytes * (partPaths.length - 1));
-                if (!part.length || part.length !== expectedPartBytes) return res.status(400).json({ ok: false, error: "invalid_upload_chunk" });
-                await out.writeFile(part);
-                totalBytes += part.length;
-              }
-            } finally { await out.close(); }
-            if (totalBytes !== expectedBytes) return res.status(400).json({ ok: false, error: "upload_size_mismatch" });
-            complete = true;
-          } finally {
-            if (!complete) await fs.rm(finalPath, { force: true }).catch(() => {});
-          }
-          await Promise.all(partPaths.map(part => fs.rm(part, { force: true }).catch(() => {})));
-          return res.json({ ok: true, media: { key, type: mime, name: String(body.name || ("event." + ext)).replace(/[\\\\/\\r\\n]/g, "_").slice(0, 180), bytes: totalBytes } });
+
+        const body = req.body || {};
+        const action = String(body.upload_action || "");
+
+        if (
+          action !== "finalize_media" &&
+          action !== "publish_uploaded"
+        ) {
+          return res.status(400).json({
+            ok: false,
+            error: "invalid_upload_action"
+          });
         }
-        if (action !== "publish_uploaded") return res.status(400).json({ ok: false, error: "invalid_upload_action" });
-        const media = Array.isArray(body.media) ? body.media : [];
-        if (!media.length || media.length > 12) return res.status(400).json({ ok: false, error: "media_required" });
-        const files = [];
-        for (const item of media) {
-          const key = String(item.key || "");
-          const mime = String(item.type || "").toLowerCase();
-          const ext = allowed.get(mime);
-          if (!ext || !new RegExp("^namecheap-events/[a-f0-9-]{36}\\\\." + ext + "$", "i").test(key)) return res.status(400).json({ ok: false, error: "invalid_uploaded_media" });
-          const filePath = path.resolve(STORAGE_ROOT, key);
-          if (!filePath.startsWith(STORAGE_ROOT + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
-          const stat = await fs.stat(filePath).catch(() => null);
-          if (!stat?.isFile() || stat.size !== Number(item.bytes)) return res.status(400).json({ ok: false, error: "uploaded_media_not_ready" });
-          files.push({ field: "media", filename: String(item.name || ("event." + ext)), contentType: mime, path: filePath, size: stat.size });
+
+        try {
+          return await forwardJson(body);
+        } catch (error) {
+          return bridgeFailure(error);
         }
-        req.files = files;
-        const handlerPath = path.join(__dirname, "api", "admin", "events.js");
-        const handler = await import(pathToFileURL(handlerPath).href);
-        if (typeof handler.default !== "function") throw new Error("invalid_event_handler");
-        await handler.default(req, res);
-      } catch (error) {
-        console.error("Chunked event upload failed:", error?.code || error?.name || "Error");
-        if (!res.headersSent) return res.status(500).json({ ok: false, error: "event_upload_failed" });
       }
-    });
+    );
   }
 
-  eventDiskUpload.any()(req, res, async error => {
-    const cleanup = () => Promise.all((req.files || []).map(file =>
-      file.path ? fs.rm(file.path, { force: true }).catch(() => {}) : Promise.resolve()
-    ));
-    if (error) {
-      await cleanup();
-      if (error instanceof multer.MulterError) {
-        const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
-        return res.status(status).json({ ok: false, error: "upload_rejected", code: error.code });
-      }
-      console.error("Event upload stream failed:", error?.code || error?.name || "Error");
-      return res.status(400).json({ ok: false, error: "upload_stream_failed" });
-    }
-
-    req.files = (req.files || []).map(file => ({
-      field: file.fieldname,
-      filename: file.originalname,
-      contentType: file.mimetype,
-      path: file.path,
-      size: file.size
-    }));
-
-    try {
-      const handlerPath = path.join(API_DIR, "admin", "events.js");
-      const handler = await import(pathToFileURL(handlerPath).href);
-      if (typeof handler.default !== "function") throw new Error("invalid_event_handler");
-      await handler.default(req, res);
-    } catch (handlerError) {
-      await cleanup();
-      console.error("Streamed event upload handler failed:", handlerError?.code || handlerError?.name || "Error");
-      if (!res.headersSent) return res.status(500).json({ ok: false, error: "event_save_failed" });
-    }
+  return res.status(415).json({
+    ok: false,
+    error: "chunked_upload_required"
   });
 });
 
