@@ -1,0 +1,121 @@
+name: Deploy Digital Marketing branding to Namecheap
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - public/index.html
+      - public/manifest.json
+      - public/events/index.html
+      - public/marketer/dashboard/index.html
+      - public/marketer/products/index.html
+      - public/marketer/profile/index.html
+      - public/marketer/wallet/index.html
+      - public/marketer/withdraw/index.html
+      - public/store/index.html
+      - public/admin/support-chat/dark.css
+      - .github/workflows/deploy-namecheap-branding.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: namecheap-branding-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Backup and sync branding files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.NAMECHEAP_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.NAMECHEAP_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          test -s "$HOME/.ssh/id_ed25519"
+          test -s "$HOME/.ssh/known_hosts"
+
+      - name: Back up current Namecheap files
+        env:
+          SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$SSH_PORT" \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          APP_DIR="/home/togeiign/marketing-network"
+          BACKUP_DIR="/home/togeiign/backups"
+          STAMP="$(date +%Y%m%d-%H%M%S)"
+          mkdir -p "$BACKUP_DIR"
+          cd "$APP_DIR"
+          tar -czf "$BACKUP_DIR/branding-before-digital-marketing-$STAMP.tar.gz" \
+            public/index.html \
+            public/manifest.json \
+            public/events/index.html \
+            public/marketer/dashboard/index.html \
+            public/marketer/products/index.html \
+            public/marketer/profile/index.html \
+            public/marketer/wallet/index.html \
+            public/marketer/withdraw/index.html \
+            public/store/index.html \
+            public/admin/support-chat/dark.css
+          echo "Backup created: $BACKUP_DIR/branding-before-digital-marketing-$STAMP.tar.gz"
+          REMOTE
+
+      - name: Sync updated public files
+        env:
+          SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          rsync -az --relative \
+            -e "ssh -i $HOME/.ssh/id_ed25519 -p $SSH_PORT -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o StrictHostKeyChecking=yes" \
+            public/index.html \
+            public/manifest.json \
+            public/events/index.html \
+            public/marketer/dashboard/index.html \
+            public/marketer/products/index.html \
+            public/marketer/profile/index.html \
+            public/marketer/wallet/index.html \
+            public/marketer/withdraw/index.html \
+            public/store/index.html \
+            public/admin/support-chat/dark.css \
+            "$SSH_USER@$SSH_HOST:/home/togeiign/marketing-network/"
+
+      - name: Verify synchronized branding
+        env:
+          SSH_HOST: ${{ secrets.NAMECHEAP_SSH_HOST }}
+          SSH_PORT: ${{ secrets.NAMECHEAP_SSH_PORT }}
+          SSH_USER: ${{ secrets.NAMECHEAP_SSH_USER }}
+        run: |
+          set -euo pipefail
+          ssh -i "$HOME/.ssh/id_ed25519" -p "$SSH_PORT" \
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes "$SSH_USER@$SSH_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          cd /home/togeiign/marketing-network
+          ! grep -RniE 'The Network Markteting|Network Marketing|تسويق[[:space:]]*شبكي|التسويق الشبكي' \
+            public/index.html public/manifest.json public/events/index.html \
+            public/marketer/dashboard/index.html public/marketer/products/index.html \
+            public/marketer/profile/index.html public/marketer/wallet/index.html \
+            public/marketer/withdraw/index.html public/store/index.html \
+            public/admin/support-chat/dark.css
+          grep -q 'Together Digital Marketing' public/index.html
+          echo "Namecheap branding verification passed."
+          REMOTE
