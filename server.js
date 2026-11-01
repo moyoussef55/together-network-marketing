@@ -32,6 +32,7 @@ app.use((req, res, next) => {
 
 const STORAGE_ROOT = path.resolve(process.env.STORAGE_DIR || "./var/uploads");
 const EVENT_UPLOAD_TEMP_DIR = path.join(STORAGE_ROOT, ".incoming-events");
+const EVENT_UPLOAD_CHUNK_BYTES = 512 * 1024;
 const eventDiskUpload = multer({
   storage: multer.diskStorage({
     destination: (_req, _file, cb) => {
@@ -57,6 +58,33 @@ app.post("/api/admin/events", async (req, res) => {
     console.error("Event upload auth check failed:", error?.code || error?.name || "Error");
     if (!res.headersSent) return res.status(500).json({ ok: false, error: "admin_auth_unavailable" });
     return;
+  }
+
+  if (req.get("x-event-upload-mode") === "raw-chunked" && req.is("application/octet-stream")) {
+    return express.raw({ type: "application/octet-stream", limit: EVENT_UPLOAD_CHUNK_BYTES })(req, res, async parseError => {
+      if (parseError) return res.status(parseError.status === 413 ? 413 : 400).json({ ok: false, error: parseError.status === 413 ? "invalid_chunk_size" : "invalid_upload_request" });
+      const uploadId = String(req.get("x-upload-id") || "");
+      const index = Number(req.get("x-upload-index"));
+      const bytes = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      const validUploadId = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(uploadId);
+      if (!validUploadId) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
+      if (!Number.isSafeInteger(index) || index < 0 || index > 10000) return res.status(400).json({ ok: false, error: "invalid_chunk_index" });
+      if (!bytes.length || bytes.length > EVENT_UPLOAD_CHUNK_BYTES) return res.status(413).json({ ok: false, error: "invalid_chunk_size" });
+      const chunkDir = path.join(EVENT_UPLOAD_TEMP_DIR, ".chunks");
+      const chunkPath = path.resolve(chunkDir, uploadId + "-" + index + ".part");
+      if (!chunkPath.startsWith(chunkDir + path.sep)) return res.status(400).json({ ok: false, error: "invalid_upload_path" });
+      const tempPath = chunkPath + "." + crypto.randomUUID() + ".tmp";
+      try {
+        await fs.mkdir(chunkDir, { recursive: true });
+        await fs.writeFile(tempPath, bytes, { flag: "wx" });
+        await fs.rename(tempPath, chunkPath);
+        return res.json({ ok: true, index, bytes: bytes.length });
+      } catch (error) {
+        await fs.rm(tempPath, { force: true }).catch(() => {});
+        console.error("Raw event chunk write failed:", error?.code || error?.name || "Error");
+        return res.status(500).json({ ok: false, error: "chunk_write_failed" });
+      }
+    });
   }
 
   if (req.get("x-event-upload-mode") === "chunked" && req.is("application/json")) {
@@ -85,10 +113,15 @@ app.post("/api/admin/events", async (req, res) => {
           const uploadId = String(body.upload_id || "");
           const chunks = Number(body.chunks);
           const expectedBytes = Number(body.bytes);
+          const requestedChunkBytes = Number(body.chunk_bytes || 0);
+          const allowedChunkSizes = [EVENT_UPLOAD_CHUNK_BYTES, 2 * 1024 * 1024];
+          const chunkBytes = allowedChunkSizes.includes(requestedChunkBytes)
+            ? requestedChunkBytes
+            : allowedChunkSizes.find(size => Number.isSafeInteger(expectedBytes) && expectedBytes > 0 && Math.ceil(expectedBytes / size) === chunks);
           const mime = String(body.content_type || "").split(";")[0].trim().toLowerCase();
           const ext = allowed.get(mime);
           if (!validUploadId(uploadId)) return res.status(400).json({ ok: false, error: "invalid_upload_id" });
-          if (!Number.isSafeInteger(chunks) || chunks < 1 || chunks > 10001 || !Number.isSafeInteger(expectedBytes) || expectedBytes < 1 || Math.ceil(expectedBytes / (2 * 1024 * 1024)) !== chunks) return res.status(400).json({ ok: false, error: "invalid_chunk_count" });
+          if (!Number.isSafeInteger(chunks) || chunks < 1 || chunks > 10001 || !Number.isSafeInteger(expectedBytes) || expectedBytes < 1 || !chunkBytes || Math.ceil(expectedBytes / chunkBytes) !== chunks) return res.status(400).json({ ok: false, error: "invalid_chunk_count" });
           if (!ext) return res.status(415).json({ ok: false, error: "unsupported_media_type" });
           const partPaths = Array.from({ length: chunks }, (_, i) => path.resolve(chunkDir, uploadId + "-" + i + ".part"));
           const key = "namecheap-events/" + crypto.randomUUID() + "." + ext;
@@ -103,7 +136,7 @@ app.post("/api/admin/events", async (req, res) => {
                 let part;
                 try { part = await fs.readFile(partPaths[i]); }
                 catch { return res.status(400).json({ ok: false, error: "missing_upload_chunk" }); }
-                const expectedPartBytes = i < partPaths.length - 1 ? 2 * 1024 * 1024 : expectedBytes - (2 * 1024 * 1024 * (partPaths.length - 1));
+                const expectedPartBytes = i < partPaths.length - 1 ? chunkBytes : expectedBytes - (chunkBytes * (partPaths.length - 1));
                 if (!part.length || part.length !== expectedPartBytes) return res.status(400).json({ ok: false, error: "invalid_upload_chunk" });
                 await out.writeFile(part);
                 totalBytes += part.length;
