@@ -38,7 +38,7 @@ body[data-theme="light"] .together-check::before{color:rgba(25,58,84,.055)!impor
 </style><script src="/network-session.js"></script></head>
 <body class="app-shell">
 <div class="menu-overlay" id="menuOverlay"></div>
-<aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-mark">T</div><div><strong>Together</strong><span>Network Marketing</span></div></div>
+<aside class="sidebar" id="sidebar"><div class="brand"><div class="brand-mark">T</div><div><strong>Together</strong><span>Digital Marketing</span></div></div>
 <nav class="side-nav">
 <a href="/marketer/dashboard/" data-ar="لوحة التحكم" data-en="Dashboard">لوحة التحكم</a>
 <a href="/marketer/my-network/" data-ar="شبكتي" data-en="My Network">شبكتي</a>
@@ -75,7 +75,7 @@ body[data-theme="light"] .together-check::before{color:rgba(25,58,84,.055)!impor
     <header class="own-checks-head">
       <img id="ownCheckAvatar" class="profile-photo" alt="صورة المسوق" hidden>
       <span id="ownCheckAvatarFallback" class="profile-fallback" aria-hidden="true">T</span>
-      <div><h2 id="ownChecksTitle">شيكاتي الشخصية</h2><p id="ownChecksName">Together Network Marketing</p></div>
+      <div><h2 id="ownChecksTitle">شيكاتي الشخصية</h2><p id="ownChecksName">Together Digital Marketing</p></div>
       <button type="button" class="own-checks-close" id="closeOwnChecks" aria-label="إغلاق">×</button>
     </header>
     <nav class="own-checks-filters" aria-label="تصفية شيكات حسابات المسوق">
@@ -116,13 +116,13 @@ function renderOwnChecks(position=activeOwnCheckPosition){
     const amount=new Intl.NumberFormat("en-US",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(x.check_amount||0));
     const checkDate=ownCheckDate(x.settled_at||x.week_end);
     const period=x.week_start&&x.week_end?'<div class="check-period">'+(lang==="ar"?"فترة الاستحقاق: ":"Settlement period: ")+ownCheckDate(x.week_start)+' – '+ownCheckDate(x.week_end)+'</div>':"";
-    return '<article class="together-check"><div class="check-top"><div class="check-brand-mark">T</div><div><div class="check-brand-name">Together</div><span class="check-brand-sub">NETWORK MARKETING</span></div><div class="check-number">OFFICIAL CHECK<br># '+esc(String(x.id||"").slice(0,8).toUpperCase())+'</div></div><div class="check-pay-label">PAY TO THE ORDER OF / مستحق الدفع إلى</div><div class="check-beneficiary">'+esc(ownCheckAccount.name||"Marketer")+'</div><div class="check-data-row"><div class="check-amount-box"><span class="check-amount-label">AMOUNT / قيمة الشيك</span><div class="check-amount-value">'+amount+' <span class="check-currency">EGP</span></div></div><div><span class="check-date-label">DATE / التاريخ</span><div class="check-date-value">'+checkDate+'</div></div></div>'+period+'<div class="check-signature-row"><div><div class="check-signature-caption">AUTHORIZED SIGNATURE</div><div class="check-signature-script">Together</div></div><span class="check-position-stamp">ACCOUNT '+position+'</span></div></article>';
+    return '<article class="together-check"><div class="check-top"><div class="check-brand-mark">T</div><div><div class="check-brand-name">Together</div><span class="check-brand-sub">DIGITAL MARKETING</span></div><div class="check-number">OFFICIAL CHECK<br># '+esc(String(x.id||"").slice(0,8).toUpperCase())+'</div></div><div class="check-pay-label">PAY TO THE ORDER OF / مستحق الدفع إلى</div><div class="check-beneficiary">'+esc(ownCheckAccount.name||"Marketer")+'</div><div class="check-data-row"><div class="check-amount-box"><span class="check-amount-label">AMOUNT / قيمة الشيك</span><div class="check-amount-value">'+amount+' <span class="check-currency">EGP</span></div></div><div><span class="check-date-label">DATE / التاريخ</span><div class="check-date-value">'+checkDate+'</div></div></div>'+period+'<div class="check-signature-row"><div><div class="check-signature-caption">AUTHORIZED SIGNATURE</div><div class="check-signature-script">Together</div></div><span class="check-position-stamp">ACCOUNT '+position+'</span></div></article>';
   }).join(""):'<div class="own-checks-empty">'+(activeOwnCheckPosition==="all"?(lang==="ar"?"لا توجد شيكات شخصية مسجلة لك حتى الآن.":"No personal checks have been recorded for you yet."):(lang==="ar"?"لا توجد شيكات شخصية لحساب "+activeOwnCheckPosition+" حتى الآن.":"No personal checks for account "+activeOwnCheckPosition+" yet."))+'</div>';
 }
 function openOwnChecks(){
   activeOwnCheckPosition="01";
   const avatar=$("#ownCheckAvatar"),fallback=$("#ownCheckAvatarFallback");
-  $("#ownChecksName").textContent=ownCheckAccount.name||"Together Network Marketing";
+  $("#ownChecksName").textContent=ownCheckAccount.name||"Together Digital Marketing";
   if(ownCheckAccount.avatar_url){avatar.onerror=()=>{avatar.hidden=true;fallback.style.display="flex"};avatar.src=ownCheckAccount.avatar_url;avatar.hidden=false;fallback.style.display="none"}else{avatar.removeAttribute("src");avatar.hidden=true;fallback.style.display="flex"}
   renderOwnChecks("01");$("#ownChecksModal").hidden=false;document.body.style.overflow="hidden";$("#closeOwnChecks").focus();
 }
