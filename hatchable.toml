@@ -27,7 +27,7 @@ description = "AI provider selector used by the server-side SEO generation setup
 
 [[config]]
 name = "app_name"
-default = "Together Network Marketing"
+default = "Together Digital Marketing"
 
 [[secret]]
 name = "TOGETHER_GMAIL_WEBAPP_URL"
