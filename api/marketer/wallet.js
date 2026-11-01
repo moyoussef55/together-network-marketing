@@ -1,6 +1,30 @@
 import { db } from "hatchable";
 import { requireNetworkUser } from "../../lib/network-auth.js";
 
+// Reconcile existing weekly cheque records into the spendable wallet. The SQL helper
+// uses a unique reference per member/week/position, so repeat calls do not double-credit.
+async function reconcileWeeklyCheckCredits(memberId) {
+  const uid = String(memberId || "").trim();
+  if (!uid) return { checked: 0, changed: 0 };
+  const result = await db.query(
+    "SELECT account_position, week_end, check_amount FROM network_bv_settlements WHERE member_id = $1 AND COALESCE(check_amount, 0) > 0 ORDER BY week_end, account_position",
+    [uid]
+  );
+  let changed = 0;
+  for (const row of result.rows || []) {
+    const amount = Number(row.check_amount || 0);
+    const position = Number(row.account_position || 1);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(position)) continue;
+    const reference = "weekly-check:" + String(row.week_end) + ":" + uid + ":" + position;
+    const credit = await db.query(
+      "SELECT credit_weekly_check_to_wallet($1, $2, $3) AS credited",
+      [uid, amount, reference]
+    );
+    if (credit.rows[0]?.credited === true) changed += 1;
+  }
+  return { checked: result.rows?.length || 0, changed };
+}
+
 export const access = "public";
 export const methods = ["GET"];
 
@@ -13,7 +37,10 @@ export default async function handler(req,res){
   if(profile.rows[0].deleted_at || profile.rows[0].status==="deleted") return res.status(403).json({error:"account_deleted"});
   if(profile.rows[0].login_blocked) return res.status(403).json({error:"login_blocked"});
 
-  const [walletRaw,adminMoves,adminHistory,adminLedger,transactionsRaw,direct,directPendingRows,checks,checkRecords,otherCommissions,withdrawals]=await Promise.all([
+  // Ensure recorded weekly checks are reflected in the real spendable wallet.
+  await reconcileWeeklyCheckCredits(uid);
+
+  const [walletRaw,adminMoves,adminHistory,adminLedger,transactionsRaw,direct,directPendingRows,checks,checkRecords,otherCommissions,otherCommissionRows,withdrawals]=await Promise.all([
     db.query("SELECT COALESCE(balance,0)::numeric AS balance FROM wallets WHERE user_id=$1",[uid]),
     db.query(`SELECT COALESCE(SUM(amount) FILTER(WHERE type='admin_add' AND amount>0),0)::numeric AS transferred_in,
                      COALESCE(ABS(SUM(amount) FILTER(WHERE type='admin_remove' AND amount<0)),0)::numeric AS removed_by_admin
@@ -47,6 +74,7 @@ export default async function handler(req,res){
               FROM network_bv_settlements WHERE member_id=$1 AND check_amount>0
               ORDER BY settled_at DESC,account_position ASC LIMIT 200`,[uid]),
     db.query("SELECT COALESCE(SUM(amount),0)::numeric AS total, COALESCE(SUM(amount) FILTER(WHERE status='paid'),0)::numeric AS paid, COALESCE(SUM(amount) FILTER(WHERE status='pending'),0)::numeric AS pending FROM commission_ledger WHERE marketer_id=$1",[uid]),
+    db.query("SELECT id,amount,status,order_id,created_at FROM commission_ledger WHERE marketer_id=$1 ORDER BY created_at DESC LIMIT 200",[uid]),
     db.query("SELECT id,amount,status,note,created_at FROM withdrawal_requests WHERE user_id=$1 ORDER BY created_at DESC LIMIT 20",[uid])
   ]);
   const scopedWalletResult = await db.query("SELECT get_marketer_wallet_state($1) AS state", [uid]);
@@ -54,6 +82,20 @@ export default async function handler(req,res){
   if (typeof scopedWallet === "string") { try { scopedWallet = JSON.parse(scopedWallet); } catch { scopedWallet = {}; } }
   const wallet = { rows: scopedWallet.wallet_found ? [{ balance: scopedWallet.balance }] : [] };
   const transactions = { rows: Array.isArray(scopedWallet.transactions) ? scopedWallet.transactions : [] };
+  // Read credited solo-marketing wallet entries through a scoped summary.
+  // This is display-only; it never changes the spendable wallet balance.
+  const soloMarketingResult = await db.query("SELECT get_solo_marketing_commission_state($1) AS state", [uid]);
+  let soloMarketingState = soloMarketingResult.rows[0]?.state || {};
+  if (typeof soloMarketingState === "string") { try { soloMarketingState = JSON.parse(soloMarketingState); } catch { soloMarketingState = {}; } }
+  // Weekly checks are credited to wallets when paid. Keep the display tied to the
+  // spendable wallet balance; summing settlement rows again would count paid checks twice.
+  const pendingWithdrawals = withdrawals.rows
+    .filter(x => ['pending','قيد الانتظار','under_review','in_review','processing','جارى المراجعة','جاري المراجعة','قيد المراجعة'].includes(String(x.status||'').trim().toLowerCase()))
+    .reduce((sum,x)=>sum+Number(x.amount||0),0);
+  const storedBalance = wallet.rows.length
+      ? Number(wallet.rows[0]?.balance||0)
+      : Number(adminHistory.rows[0]?.net||0);
+  const currentBalance = storedBalance - pendingWithdrawals;
 
   return res.json({
     ok:true,
@@ -61,9 +103,7 @@ export default async function handler(req,res){
     // If the wallet row is absent, recover the displayed balance from the existing
     // protected admin-adjustment ledger. Never override a present wallet row: it may
     // already reflect legitimate purchases or withdrawals.
-    balance:(wallet.rows.length && (Number(wallet.rows[0]?.balance||0)!==0 || transactions.rows.length>0))
-      ?Number(wallet.rows[0]?.balance||0)
-      :Number(adminHistory.rows[0]?.net||0),
+    balance:Math.max(0,currentBalance),
     admin_transfers:{
       credited:Number(adminMoves.rows[0]?.transferred_in||0)||Number(adminHistory.rows[0]?.credited||0),
       removed:Number(adminMoves.rows[0]?.removed_by_admin||0)||Number(adminHistory.rows[0]?.removed||0)
@@ -71,24 +111,23 @@ export default async function handler(req,res){
     earnings:{
       direct_commissions:{total:Number(direct.rows[0]?.total||0),paid:Number(direct.rows[0]?.paid||0),payable:Number(direct.rows[0]?.payable||0),pending:Number(direct.rows[0]?.pending||0)},
       weekly_checks:{total:Number(checks.rows[0]?.total||0),count:Number(checks.rows[0]?.count||0)},
+      solo_marketing_commissions:{total:Number(soloMarketingState.total||0),count:Number(soloMarketingState.count||0),transactions:Array.isArray(soloMarketingState.transactions)?soloMarketingState.transactions:[]},
       other_commissions:{total:Number(otherCommissions.rows[0]?.total||0),paid:Number(otherCommissions.rows[0]?.paid||0),pending:Number(otherCommissions.rows[0]?.pending||0)}
     },
     transactions:[
-      ...transactions.rows,
+      ...transactions.rows.map(x=>{
+        if(x.type==='weekly_check' && typeof x.reference==='string'){
+          const match=x.reference.match(/^weekly-check:\d{4}-\d{2}-\d{2}:[^:]+:(\d+)$/);
+          if(match) return {...x,direction:'check',reference:'التوكيل '+String(Number(match[1]||1)).padStart(2,'0')};
+        }
+        return x;
+      }),
       ...directPendingRows.rows.map(x=>({id:'direct-pending-'+x.id,type:'direct_commission_pending',amount:Number(x.amount||0),direction:'pending',reference:'عمولة مؤجلة حتى تحديث السبت 12:00 ص',created_at:x.created_at})),
-      ...adminLedger.rows.map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
-      ...checkRecords.rows.map(x=>({id:'check-'+x.id,type:'weekly_check',amount:Number(x.check_amount||0),direction:'check',reference:'التوكيل '+String(x.account_position||1).padStart(2,'0'),created_at:x.settled_at}))
+      ...adminLedger.rows.filter(x=>!transactions.rows.some(t=>t.type===(x.action==='remove'?'admin_remove':'admin_add')&&Math.abs(Number(t.amount||0))===Math.abs(Number(x.amount||0))&&Math.abs(new Date(t.created_at).getTime()-new Date(x.created_at).getTime())<=10000)).map(x=>({id:'admin-'+x.id,type:x.action==='remove'?'admin_remove':'admin_add',amount:x.action==='remove'?-Math.abs(Number(x.amount||0)):Math.abs(Number(x.amount||0)),direction:x.action==='remove'?'out':'in',reference:null,created_at:x.created_at})),
+      ...otherCommissionRows.rows.map(x=>({id:'network-commission-'+x.id,type:'network_commission',amount:Number(x.amount||0),direction:'in',status:x.status||'pending',reference:x.order_id?'طلب '+x.order_id:'عمولة شبكة',created_at:x.created_at})),
+      ...checkRecords.rows.filter(x=>!transactions.rows.some(t=>t.type==='weekly_check'&&t.reference===('weekly-check:'+String(x.week_end)+':'+uid+':'+String(x.account_position||1)))).map(x=>({id:'check-'+x.id,type:'weekly_check',amount:Number(x.check_amount||0),direction:'check',reference:'التوكيل '+String(x.account_position||1).padStart(2,'0'),created_at:x.settled_at}))
     ].sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0)).slice(0,100),
-    check_records:checkRecords.rows.length ? checkRecords.rows : (Number(wallet.rows[0]?.balance||0)>0 || Number(adminHistory.rows[0]?.net||0)>0 ? [{
-      id:"wallet-balance",
-      account_position:1,
-      week_start:null,
-      week_end:null,
-      check_amount:(wallet.rows.length && (Number(wallet.rows[0]?.balance||0)!==0 || transactions.rows.length>0))
-        ? Number(wallet.rows[0]?.balance||0)
-        : Number(adminHistory.rows[0]?.net||0),
-      settled_at:new Date().toISOString()
-    }] : []),
+    check_records:checkRecords.rows,
     withdrawals:withdrawals.rows
   });
 }
