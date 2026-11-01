@@ -1,5 +1,34 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الأحداث والمؤتمرات | Together Network</title><link rel="stylesheet" href="/theme.css?v=620"><style>
 .wrap{max-width:1100px;margin:auto}.events{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}.event{border:1px solid #ffffff20;border-radius:18px;overflow:hidden;background:#101722;box-shadow:0 8px 26px #0002}.event img,.event video{width:100%;height:240px;object-fit:cover;display:block;background:#080d14}.event-body{padding:16px}.desc{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.8;color:#f1f5f9;font-size:16px}.date{color:#a8b4c4;font-size:12px;margin-top:12px}.empty{padding:28px;text-align:center;border:1px dashed #ffffff30;border-radius:16px;color:#a8b4c4}.muted{color:#a8b4c4}
+
+/* Event cards: readable off-white surfaces in light mode only. */
+body[data-theme="light"] .event,
+body[data-theme="light"] .event-body {
+  background:#fffdf9!important;
+  color:#33251c!important;
+  border-color:#e0d2c2!important;
+}
+body[data-theme="light"] .event h2,
+body[data-theme="light"] .event h3,
+body[data-theme="light"] .event .desc {
+  color:#33251c!important;
+  -webkit-text-fill-color:#33251c!important;
+  opacity:1!important;
+}
+body[data-theme="light"] .event .date,
+body[data-theme="light"] .event .muted {
+  color:#765f4c!important;
+  -webkit-text-fill-color:#765f4c!important;
+}
+body[data-theme="light"] .event img,
+body[data-theme="light"] .event video {
+  background:#eee7de!important;
+}
+body[data-theme="light"] .empty {
+  background:#fffdf9!important;
+  color:#765f4c!important;
+  border-color:#e0d2c2!important;
+}
 </style></head><body class="app-shell"><main class="main-content"><header class="page-head"><div><p class="eyebrow">Together Network</p><h1>الأحداث والمؤتمرات</h1><p class="muted">تابع أحدث فعاليات ومؤتمرات توجيذر من الصور والفيديوهات وتفاصيل كل حدث.</p></div><button class="btn" id="shareEvents" type="button">نسخ رابط الأحداث للزوار</button></header><section class="wrap"><div id="status" class="muted">جارٍ تحميل الأحداث…</div><div id="events" class="events"></div></section></main><script src="/marketer-sidebar.js?v=620"></script><script>
 const $=s=>document.querySelector(s);function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function mediaMarkup(e){return (e.media_items||[{media_url:e.media_url,media_type:e.media_type}]).map(m=>{const url=esc(m.media_url||"");return String(m.media_type||"").startsWith("video/")?'<video controls preload="metadata" playsinline src="'+url+'"></video>':'<img loading="lazy" src="'+url+'" alt="صورة الحدث">'}).join("")}
