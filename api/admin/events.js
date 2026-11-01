@@ -25,7 +25,12 @@ async function storageWithRateLimitRetry(operation, label) {
 }
 async function handleChunkedEventPost(req,res,b){
  const action=String(b.upload_action||"");
- if(!["upload_chunk","finalize_media","publish_uploaded"].includes(action))return null;
+ if(!["authorize_upload","upload_chunk","finalize_media","publish_uploaded"].includes(action))return null;
+ if(action==="authorize_upload"){
+  const uploadId=String(b.upload_id||"");
+  if(!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(uploadId))return res.status(400).json({ok:false,error:"invalid_upload_id"});
+  return res.json({ok:true,upload_id:uploadId});
+ }
  if(action==="upload_chunk"){
   const uploadId=String(b.upload_id||"");
   if(!/^[a-f0-9-]{20,80}$/i.test(uploadId))return res.status(400).json({ok:false,error:"invalid_upload_id"});
@@ -77,7 +82,7 @@ async function handleChunkedEventPost(req,res,b){
  if(!files.length)return res.status(400).json({ok:false,error:"media_required"});
  for(const f of files){
   const mime=String(f.type||"").toLowerCase(),ext=allowed.get(mime),key=String(f.key||"");
-  if(!ext||!new RegExp("^network-events/[a-f0-9-]{36}\\."+ext+"$","i").test(key)||!Number.isSafeInteger(Number(f.bytes))||Number(f.bytes)<1)
+  if(!ext||!new RegExp("^(?:network-events|namecheap-events)/[a-f0-9-]{36}\\."+ext+"$","i").test(key)||!Number.isSafeInteger(Number(f.bytes))||Number(f.bytes)<1)
    return res.status(400).json({ok:false,error:"invalid_uploaded_media"});
  }
  let eventId=null;
@@ -91,7 +96,7 @@ async function handleChunkedEventPost(req,res,b){
   return res.status(201).json({ok:true,event});
  }catch(err){
   if(eventId!==null){try{await db.query("DELETE FROM network_events WHERE id=$1",[eventId])}catch(_){}}
-  await Promise.all(files.map(async f=>{try{await storage.del(f.key)}catch(_){}}));
+  await Promise.all(files.filter(f=>String(f.key||"").startsWith("network-events/")).map(async f=>{try{await storage.del(f.key)}catch(_){}}));
   throw err;
  }
 }
@@ -119,10 +124,13 @@ export default async function(req,res){
  if(req.method==="DELETE"){
   const b=typeof req.body==="string"?JSON.parse(req.body||"{}"):(req.body||{}),id=Number(b.id);
   if(!Number.isInteger(id)||id<1)return res.status(400).json({ok:false,error:"event_id_required"});
-  const r=await db.query("DELETE FROM network_events WHERE id=$1 RETURNING media_key",[id]);
-  if(!r.rows.length)return res.status(404).json({ok:false,error:"event_not_found"});
-  await storage.del(r.rows[0].media_key);
-  return res.json({ok:true});
+  const keys=await db.query("SELECT media_key FROM network_events WHERE id=$1 UNION ALL SELECT media_key FROM network_event_media WHERE event_id=$1",[id]);
+  if(!keys.rows.length)return res.status(404).json({ok:false,error:"event_not_found"});
+  await db.query("DELETE FROM network_event_media WHERE event_id=$1",[id]);
+  await db.query("DELETE FROM network_events WHERE id=$1",[id]);
+  const localMedia=keys.rows.map(x=>String(x.media_key||"")).filter(key=>key.startsWith("namecheap-events/"));
+  await Promise.all(keys.rows.map(async x=>{const key=String(x.media_key||"");if(key.startsWith("network-events/")){try{await storage.del(key)}catch(_){}}}));
+  return res.json({ok:true,local_media:localMedia});
  }
  try{
   const b=req.body||{},title=String(b.title||"").trim(),description=String(b.description||"").trim(),eventType=b.event_type==="upcoming"?"upcoming":"past",audience=b.audience==="public"?"public":"members",sectionTitle=String(b.section_title||"").trim(),eventDate=b.event_date?new Date(b.event_date):null,files=(req.files||[]).filter(f=>f.field==="media"),file=files[0];
