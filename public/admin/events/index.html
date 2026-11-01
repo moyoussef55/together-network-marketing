@@ -1,5 +1,34 @@
 <!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>الأحداث والمؤتمرات | Together Network</title><link rel="stylesheet" href="/theme.css"><style>
 .wrap{max-width:1100px;margin:auto}.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.actions{display:flex;gap:8px;flex-wrap:wrap}.formgrid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.field{display:flex;flex-direction:column;gap:8px}.field textarea{min-height:120px;resize:vertical}.field textarea,.field input{font:inherit;border:1px solid #cbd5e1;border-radius:10px;padding:12px;width:100%;box-sizing:border-box}.preview{max-width:100%;max-height:280px;border-radius:12px;display:none;margin-top:10px}.events{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin-top:16px}.event{border:1px solid #ffffff20;border-radius:16px;overflow:hidden;background:#101722}.event img,.event video{width:100%;height:210px;object-fit:cover;background:#080d14;display:block}.event-body{padding:14px}.desc{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}.muted{color:#64748b}.msg{margin-top:12px;font-weight:700}.btn-danger{background:#a91f2c;color:#fff}.event .actions{margin-top:12px}@media(max-width:700px){.formgrid{grid-template-columns:1fr}}
+
+/* Event cards: readable off-white surfaces in light mode only. */
+body[data-theme="light"] .event,
+body[data-theme="light"] .event-body {
+  background:#fffdf9!important;
+  color:#33251c!important;
+  border-color:#e0d2c2!important;
+}
+body[data-theme="light"] .event h2,
+body[data-theme="light"] .event h3,
+body[data-theme="light"] .event .desc {
+  color:#33251c!important;
+  -webkit-text-fill-color:#33251c!important;
+  opacity:1!important;
+}
+body[data-theme="light"] .event .date,
+body[data-theme="light"] .event .muted {
+  color:#765f4c!important;
+  -webkit-text-fill-color:#765f4c!important;
+}
+body[data-theme="light"] .event img,
+body[data-theme="light"] .event video {
+  background:#eee7de!important;
+}
+body[data-theme="light"] .empty {
+  background:#fffdf9!important;
+  color:#765f4c!important;
+  border-color:#e0d2c2!important;
+}
 </style></head><body><main class="shell wrap"><header class="topbar"><div><p class="muted">إدارة Together Network</p><h1>الأحداث والمؤتمرات</h1><p class="muted">أضف وصف الحدث وصورته أو الفيديو الخاص به ليظهر لجميع المسوقين.</p></div><a class="btn" href="/admin/">لوحة الإدارة</a></header>
 <section class="card" style="margin-top:18px"><h2>إضافة حدث أو مؤتمر</h2><form id="form"><div class="formgrid"><label class="field">وصف الحدث<textarea id="description" maxlength="5000" required placeholder="اكتب تفاصيل الحدث أو المؤتمر وموعده ومكانه…"></textarea><span class="muted">الحد الأقصى 5000 حرف.</span></label><label class="field">عنوان الحدث<input id="title" maxlength="180" required placeholder="عنوان الحدث أو المؤتمر"></label><label class="field">نوع الحدث<select id="eventType"><option value="past">الأحداث السابقة</option><option value="upcoming">الأحداث القادمة</option></select></label><label class="field">موعد الحدث القادم<input id="eventDate" type="datetime-local"></label><label class="field">اسم القسم<input id="sectionTitle" maxlength="180" placeholder="مثال: مؤتمرات الشركة"></label><label class="field">إتاحة العرض<select id="audience"><option value="members">للمسوقين فقط</option><option value="public">للمسوقين والزوار عبر الرابط</option></select></label><label class="field">رفع صورة أو فيديو<input id="media" type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime" required><span class="muted">صور JPG/PNG/WEBP/GIF أو فيديو MP4/WEBM/MOV. لا يوجد حد لحجم الملف من واجهة الموقع؛ قد تظل هناك حدود تقنية لدى خدمة الاستضافة.</span><img id="imagePreview" class="preview" alt="معاينة الصورة"><video id="videoPreview" class="preview" controls></video></label></div><div class="actions" style="margin-top:16px"><button class="btn primary" id="save" type="submit">نشر الحدث</button><span id="status" class="muted"></span></div></form></section>
 <section class="card" style="margin-top:18px"><div class="topbar"><h2>الأحداث المنشورة</h2><button class="btn" id="refresh" type="button">تحديث القائمة</button></div><div id="events" class="events"><p class="muted">جارٍ تحميل الأحداث…</p></div></section></main>
